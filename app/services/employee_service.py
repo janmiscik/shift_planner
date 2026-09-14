@@ -38,8 +38,9 @@ def add_employee(
 
     return employee_id
 
+
 def get_employees():
-    """Načíta všetkých zamestnancov z databázy."""
+    """Načíta všetkých zamestnancov."""
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -62,3 +63,88 @@ def get_employees():
     connection.close()
 
     return employees
+
+
+def get_employee(employee_id):
+    """Načíta jedného zamestnanca."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            id,
+            first_name,
+            last_name,
+            position,
+            employment_type,
+            active
+        FROM employees
+        WHERE id = ?
+        """,
+        (employee_id,),
+    )
+
+    employee = cursor.fetchone()
+    connection.close()
+
+    return employee
+
+
+def update_employee(
+    employee_id,
+    first_name,
+    last_name,
+    position,
+    employment_type,
+):
+    """Upraví údaje zamestnanca."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        UPDATE employees
+        SET
+            first_name = ?,
+            last_name = ?,
+            position = ?,
+            employment_type = ?
+        WHERE id = ?
+        """,
+        (
+            first_name,
+            last_name,
+            position,
+            employment_type,
+            employee_id,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def set_employee_active(employee_id, active):
+    """Aktivuje alebo deaktivuje zamestnanca."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        UPDATE employees
+        SET active = ?
+        WHERE id = ?
+        """,
+        (
+            active,
+            employee_id,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+

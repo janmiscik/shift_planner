@@ -20,11 +20,14 @@
     <h1>SHIFT PLANNER</h1>
 
     <nav>
-        <a href="/">Zamestnanci</a>
+        <a href="/">Dashboard</a>
+        <a href="/employees">Zamestnanci</a>
         <a href="/shifts">Smeny</a>
+        <a href="/calendar">Kalendár</a>
     </nav>
 
 </header>
+
 
 <main>
 
@@ -38,6 +41,7 @@
 
     </div>
 
+
     <div class="card">
 
         {% if employees %}
@@ -45,28 +49,104 @@
             <table>
 
                 <thead>
+
                     <tr>
                         <th>ID</th>
                         <th>Meno</th>
                         <th>Pozícia</th>
                         <th>Úväzok</th>
+                        <th>Stav</th>
+                        <th>Akcie</th>
                     </tr>
+
                 </thead>
+
 
                 <tbody>
 
                     {% for employee in employees %}
 
                         <tr>
-                            <td>{{ employee[0] }}</td>
+
+                            <td>
+                                {{ employee[0] }}
+                            </td>
+
 
                             <td>
                                 {{ employee[1] }} {{ employee[2] }}
                             </td>
 
-                            <td>{{ employee[3] }}</td>
 
-                            <td>{{ employee[4] }}</td>
+                            <td>
+                                {{ employee[3] }}
+                            </td>
+
+
+                            <td>
+                                {{ employee[4] }}
+                            </td>
+
+
+                            <td>
+
+                                {% if employee[5] %}
+
+                                    <span class="status-active">
+                                        Aktívny
+                                    </span>
+
+                                {% else %}
+
+                                    <span class="status-inactive">
+                                        Neaktívny
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+
+                            <td class="actions">
+
+                                <a
+                                    class="btn btn-small"
+                                    href="/employees/edit/{{ employee[0] }}"
+                                >
+                                    ✏️ Upraviť
+                                </a>
+
+
+                                <form
+                                    method="POST"
+                                    action="/employees/toggle/{{ employee[0] }}"
+                                    onsubmit="return confirm('Naozaj chceš zmeniť stav tohto zamestnanca?');"
+                                >
+
+                                    {% if employee[5] %}
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-warning btn-small"
+                                        >
+                                            🔴 Deaktivovať
+                                        </button>
+
+                                    {% else %}
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-success btn-small"
+                                        >
+                                            🟢 Aktivovať
+                                        </button>
+
+                                    {% endif %}
+
+                                </form>
+
+                            </td>
+
                         </tr>
 
                     {% endfor %}
@@ -78,7 +158,15 @@
         {% else %}
 
             <div class="empty">
-                Žiadni zamestnanci.
+
+                <p>
+                    Zatiaľ nemáš žiadnych zamestnancov.
+                </p>
+
+                <a class="btn" href="/employees/add">
+                    Pridať prvého zamestnanca
+                </a>
+
             </div>
 
         {% endif %}

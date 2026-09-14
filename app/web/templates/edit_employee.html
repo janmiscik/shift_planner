@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="sk">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Upraviť zamestnanca - Shift Planner</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<header>
+
+    <h1>SHIFT PLANNER</h1>
+
+    <nav>
+        <a href="/">Dashboard</a>
+        <a href="/employees">Zamestnanci</a>
+        <a href="/shifts">Smeny</a>
+        <a href="/calendar">Kalendár</a>
+    </nav>
+
+</header>
+
+
+<main>
+
+    <div class="page-header">
+
+        <h2>Upraviť zamestnanca</h2>
+
+    </div>
+
+
+    <div class="card">
+
+        <form method="POST">
+
+            <div class="form-group">
+
+                <label for="first_name">
+                    Meno
+                </label>
+
+                <input
+                    type="text"
+                    id="first_name"
+                    name="first_name"
+                    value="{{ employee[1] }}"
+                    required
+                >
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="last_name">
+                    Priezvisko
+                </label>
+
+                <input
+                    type="text"
+                    id="last_name"
+                    name="last_name"
+                    value="{{ employee[2] }}"
+                    required
+                >
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="position">
+                    Pozícia
+                </label>
+
+                <input
+                    type="text"
+                    id="position"
+                    name="position"
+                    value="{{ employee[3] }}"
+                    required
+                >
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="employment_type">
+                    Úväzok
+                </label>
+
+                <select
+                    id="employment_type"
+                    name="employment_type"
+                    required
+                >
+
+                    <option
+                        value="full-time"
+                        {% if employee[4] == "full-time" %}
+                            selected
+                        {% endif %}
+                    >
+                        Plný úväzok
+                    </option>
+
+                    <option
+                        value="part-time"
+                        {% if employee[4] == "part-time" %}
+                            selected
+                        {% endif %}
+                    >
+                        Čiastočný úväzok
+                    </option>
+
+                    <option
+                        value="brigáda"
+                        {% if employee[4] == "brigáda" %}
+                            selected
+                        {% endif %}
+                    >
+                        Brigáda
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <button class="btn" type="submit">
+                Uložiť zmeny
+            </button>
+
+
+            <a
+                class="btn btn-secondary"
+                href="/employees"
+            >
+                Zrušiť
+            </a>
+
+        </form>
+
+    </div>
+
+</main>
+
+</body>
+</html>
+

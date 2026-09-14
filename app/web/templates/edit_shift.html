@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Pridať smenu - Shift Planner</title>
+    <title>Upraviť smenu - Shift Planner</title>
 
     <link
         rel="stylesheet"
@@ -32,9 +32,10 @@
 
     <div class="page-header">
 
-        <h2>Pridať smenu</h2>
+        <h2>Upraviť smenu</h2>
 
     </div>
+
 
     <div class="card">
 
@@ -54,7 +55,12 @@
 
                     {% for employee in employees %}
 
-                        <option value="{{ employee[0] }}">
+                        <option
+                            value="{{ employee[0] }}"
+                            {% if employee[0] == shift[1] %}
+                                selected
+                            {% endif %}
+                        >
                             {{ employee[1] }} {{ employee[2] }}
                         </option>
 
@@ -75,7 +81,7 @@
                     type="date"
                     id="shift_date"
                     name="shift_date"
-                    value="{{ selected_date }}"
+                    value="{{ shift[2] }}"
                     required
                 >
 
@@ -92,6 +98,7 @@
                     type="time"
                     id="start_time"
                     name="start_time"
+                    value="{{ shift[3] }}"
                     required
                 >
 
@@ -108,6 +115,7 @@
                     type="time"
                     id="end_time"
                     name="end_time"
+                    value="{{ shift[4] }}"
                     required
                 >
 
@@ -126,15 +134,30 @@
                     required
                 >
 
-                    <option value="Ranná">
+                    <option
+                        value="Ranná"
+                        {% if shift[5] == "Ranná" %}
+                            selected
+                        {% endif %}
+                    >
                         Ranná
                     </option>
 
-                    <option value="Poobedná">
+                    <option
+                        value="Poobedná"
+                        {% if shift[5] == "Poobedná" %}
+                            selected
+                        {% endif %}
+                    >
                         Poobedná
                     </option>
 
-                    <option value="Nočná">
+                    <option
+                        value="Nočná"
+                        {% if shift[5] == "Nočná" %}
+                            selected
+                        {% endif %}
+                    >
                         Nočná
                     </option>
 
@@ -144,8 +167,16 @@
 
 
             <button class="btn" type="submit">
-                Uložiť smenu
+                Uložiť zmeny
             </button>
+
+
+            <a
+                class="btn btn-secondary"
+                href="/shifts"
+            >
+                Zrušiť
+            </a>
 
         </form>
 
@@ -155,4 +186,3 @@
 
 </body>
 </html>
-

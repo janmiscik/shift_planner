@@ -69,3 +69,86 @@ def get_shifts():
     connection.close()
 
     return shifts
+
+
+def get_shift(shift_id):
+    """Načíta jednu konkrétnu smenu."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            id,
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+            shift_type
+        FROM shifts
+        WHERE id = ?
+        """,
+        (shift_id,),
+    )
+
+    shift = cursor.fetchone()
+    connection.close()
+
+    return shift
+
+
+def update_shift(
+    shift_id,
+    employee_id,
+    shift_date,
+    start_time,
+    end_time,
+    shift_type,
+):
+    """Upraví existujúcu smenu."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        UPDATE shifts
+        SET
+            employee_id = ?,
+            shift_date = ?,
+            start_time = ?,
+            end_time = ?,
+            shift_type = ?
+        WHERE id = ?
+        """,
+        (
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+            shift_type,
+            shift_id,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def delete_shift(shift_id):
+    """Vymaže existujúcu smenu."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM shifts
+        WHERE id = ?
+        """,
+        (shift_id,),
+    )
+
+    connection.commit()
+    connection.close()

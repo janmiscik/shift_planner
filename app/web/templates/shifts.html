@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="sk">
 
@@ -21,8 +20,10 @@
     <h1>SHIFT PLANNER</h1>
 
     <nav>
+        <a href="/">Dashboard</a>
         <a href="/">Zamestnanci</a>
         <a href="/shifts">Smeny</a>
+        <a href="/calendar">Kalendár</a>
     </nav>
 
 </header>
@@ -39,6 +40,7 @@
 
     </div>
 
+
     <div class="card">
 
         {% if shifts %}
@@ -46,14 +48,18 @@
             <table>
 
                 <thead>
+
                     <tr>
                         <th>Zamestnanec</th>
                         <th>Dátum</th>
                         <th>Začiatok</th>
                         <th>Koniec</th>
                         <th>Typ smeny</th>
+                        <th>Akcie</th>
                     </tr>
+
                 </thead>
+
 
                 <tbody>
 
@@ -81,6 +87,33 @@
                                 {{ shift[6] }}
                             </td>
 
+                            <td class="actions">
+
+                                <a
+                                    class="btn btn-small"
+                                    href="/shifts/edit/{{ shift[0] }}"
+                                >
+                                    ✏️ Upraviť
+                                </a>
+
+
+                                <form
+                                    method="POST"
+                                    action="/shifts/delete/{{ shift[0] }}"
+                                    onsubmit="return confirm('Naozaj chceš túto smenu zmazať?');"
+                                >
+
+                                    <button
+                                        type="submit"
+                                        class="btn btn-delete btn-small"
+                                    >
+                                        🗑️ Zmazať
+                                    </button>
+
+                                </form>
+
+                            </td>
+
                         </tr>
 
                     {% endfor %}
@@ -92,7 +125,13 @@
         {% else %}
 
             <div class="empty">
-                Žiadne smeny.
+
+                <p>Žiadne smeny.</p>
+
+                <a class="btn" href="/shifts/add">
+                    Pridať prvú smenu
+                </a>
+
             </div>
 
         {% endif %}
@@ -103,4 +142,4 @@
 
 </body>
 </html>
-```
+

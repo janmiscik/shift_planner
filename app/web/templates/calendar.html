@@ -52,6 +52,7 @@
 
     </div>
 
+
     <div class="calendar">
 
         <div class="calendar-day-name">Po</div>
@@ -62,15 +63,20 @@
         <div class="calendar-day-name">So</div>
         <div class="calendar-day-name">Ne</div>
 
+
         {% for day in calendar_days %}
 
             {% if day %}
 
-                <div class="calendar-day">
+                <a
+                    class="calendar-day calendar-day-link"
+                    href="/shifts/add?date={{ '%04d-%02d-%02d'|format(year, month, day) }}"
+                >
 
                     <div class="day-number">
                         {{ day }}
                     </div>
+
 
                     {% for shift in shifts %}
 
@@ -96,7 +102,7 @@
 
                     {% endfor %}
 
-                </div>
+                </a>
 
             {% else %}
 
@@ -111,5 +117,3 @@
 </main>
 
 </body>
-</html>
-
