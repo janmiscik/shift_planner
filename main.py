@@ -1,9 +1,7 @@
 """Hlavný vstupný bod aplikácie Shift Planner."""
 
-from datetime import date, time
-
-from app.models.employee import Employee
-from app.models.shift import Shift
+from app.data.database import create_tables
+from app.services.employee_service import get_employees
 
 
 def main():
@@ -11,27 +9,26 @@ def main():
     print("       SHIFT PLANNER")
     print("=" * 40)
 
-    employee = Employee(
-        first_name="Ján",
-        last_name="Novák",
-        position="Skladník",
-    )
+    create_tables()
 
-    shift = Shift(
-        shift_date=date(2026, 9, 15),
-        start_time=time(6, 0),
-        end_time=time(14, 0),
-        shift_type="Ranná",
-    )
+    employees = get_employees()
 
     print()
-    print("ZAMESTNANEC")
-    print(f"Meno: {employee.full_name}")
-    print(f"Pozícia: {employee.position}")
+    print("ZAMESTNANCI V DATABÁZE")
 
-    print()
-    print("SMENA")
-    print(shift)
+    for employee in employees:
+        employee_id = employee[0]
+        first_name = employee[1]
+        last_name = employee[2]
+        position = employee[3]
+        employment_type = employee[4]
+
+        print(
+            f"{employee_id}. "
+            f"{first_name} {last_name} - "
+            f"{position} - "
+            f"{employment_type}"
+        )
 
 
 if __name__ == "__main__":

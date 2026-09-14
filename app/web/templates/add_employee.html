@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pridať zamestnanca - Shift Planner</title>
+</head>
+
+<body>
+
+    <h1>SHIFT PLANNER</h1>
+
+    <h2>Pridať zamestnanca</h2>
+
+    <form method="POST">
+
+        <div>
+            <label for="first_name">Meno:</label>
+            <input
+                type="text"
+                id="first_name"
+                name="first_name"
+                required
+            >
+        </div>
+
+        <br>
+
+        <div>
+            <label for="last_name">Priezvisko:</label>
+            <input
+                type="text"
+                id="last_name"
+                name="last_name"
+                required
+            >
+        </div>
+
+        <br>
+
+        <div>
+            <label for="position">Pozícia:</label>
+            <input
+                type="text"
+                id="position"
+                name="position"
+                required
+            >
+        </div>
+
+        <br>
+
+        <div>
+            <label for="employment_type">Úväzok:</label>
+
+            <select
+                id="employment_type"
+                name="employment_type"
+            >
+                <option value="full-time">Full-time</option>
+                <option value="part-time">Part-time</option>
+            </select>
+        </div>
+
+        <br>
+
+        <button type="submit">
+            Uložiť zamestnanca
+        </button>
+
+    </form>
+
+    <br>
+
+    <a href="/">Späť na zoznam</a>
+
+</body>
+</html>
