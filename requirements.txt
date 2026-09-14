@@ -1,0 +1,2 @@
+# Zatiaľ bez externých balíkov.
+# Balíky budeme pridávať postupne podľa potreby.
