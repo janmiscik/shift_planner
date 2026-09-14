@@ -1,44 +1,91 @@
 <!DOCTYPE html>
 <html lang="sk">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shift Planner</title>
+
+    <title>Zamestnanci - Shift Planner</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
 </head>
 
 <body>
 
+<header>
+
     <h1>SHIFT PLANNER</h1>
 
-    <h2>Zamestnanci</h2>
+    <nav>
+        <a href="/">Zamestnanci</a>
+        <a href="/shifts">Smeny</a>
+    </nav>
 
-    {% if employees %}
-        <table border="1" cellpadding="8">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Meno</th>
-                    <th>Pozícia</th>
-                    <th>Úväzok</th>
-                </tr>
-            </thead>
+</header>
 
-            <tbody>
-                {% for employee in employees %}
+<main>
+
+    <div class="page-header">
+
+        <h2>Zamestnanci</h2>
+
+        <a class="btn" href="/employees/add">
+            + Pridať zamestnanca
+        </a>
+
+    </div>
+
+    <div class="card">
+
+        {% if employees %}
+
+            <table>
+
+                <thead>
                     <tr>
-                        <td>{{ employee[0] }}</td>
-                        <td>
-                            {{ employee[1] }} {{ employee[2] }}
-                        </td>
-                        <td>{{ employee[3] }}</td>
-                        <td>{{ employee[4] }}</td>
+                        <th>ID</th>
+                        <th>Meno</th>
+                        <th>Pozícia</th>
+                        <th>Úväzok</th>
                     </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p>Žiadni zamestnanci.</p>
-    {% endif %}
+                </thead>
+
+                <tbody>
+
+                    {% for employee in employees %}
+
+                        <tr>
+                            <td>{{ employee[0] }}</td>
+
+                            <td>
+                                {{ employee[1] }} {{ employee[2] }}
+                            </td>
+
+                            <td>{{ employee[3] }}</td>
+
+                            <td>{{ employee[4] }}</td>
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        {% else %}
+
+            <div class="empty">
+                Žiadni zamestnanci.
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</main>
 
 </body>
 </html>

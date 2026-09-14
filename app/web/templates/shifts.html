@@ -1,0 +1,106 @@
+```html
+<!DOCTYPE html>
+<html lang="sk">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Smeny - Shift Planner</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<header>
+
+    <h1>SHIFT PLANNER</h1>
+
+    <nav>
+        <a href="/">Zamestnanci</a>
+        <a href="/shifts">Smeny</a>
+    </nav>
+
+</header>
+
+<main>
+
+    <div class="page-header">
+
+        <h2>Smeny</h2>
+
+        <a class="btn" href="/shifts/add">
+            + Pridať smenu
+        </a>
+
+    </div>
+
+    <div class="card">
+
+        {% if shifts %}
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>Zamestnanec</th>
+                        <th>Dátum</th>
+                        <th>Začiatok</th>
+                        <th>Koniec</th>
+                        <th>Typ smeny</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for shift in shifts %}
+
+                        <tr>
+
+                            <td>
+                                {{ shift[1] }} {{ shift[2] }}
+                            </td>
+
+                            <td>
+                                {{ shift[3] }}
+                            </td>
+
+                            <td>
+                                {{ shift[4] }}
+                            </td>
+
+                            <td>
+                                {{ shift[5] }}
+                            </td>
+
+                            <td>
+                                {{ shift[6] }}
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        {% else %}
+
+            <div class="empty">
+                Žiadne smeny.
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</main>
+
+</body>
+</html>
+```
