@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="sk">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Kalendár - Shift Planner</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<header>
+
+    <h1>SHIFT PLANNER</h1>
+
+    <nav>
+        <a href="/">Dashboard</a>
+        <a href="/">Zamestnanci</a>
+        <a href="/shifts">Smeny</a>
+        <a href="/calendar">Kalendár</a>
+    </nav>
+
+</header>
+
+<main>
+
+    <div class="calendar-header">
+
+        <a
+            class="btn"
+            href="/calendar?year={{ year if month > 1 else year - 1 }}&month={{ month - 1 if month > 1 else 12 }}"
+        >
+            ←
+        </a>
+
+        <h2>
+            {{ month }} / {{ year }}
+        </h2>
+
+        <a
+            class="btn"
+            href="/calendar?year={{ year if month < 12 else year + 1 }}&month={{ month + 1 if month < 12 else 1 }}"
+        >
+            →
+        </a>
+
+    </div>
+
+    <div class="calendar">
+
+        <div class="calendar-day-name">Po</div>
+        <div class="calendar-day-name">Ut</div>
+        <div class="calendar-day-name">St</div>
+        <div class="calendar-day-name">Št</div>
+        <div class="calendar-day-name">Pi</div>
+        <div class="calendar-day-name">So</div>
+        <div class="calendar-day-name">Ne</div>
+
+        {% for day in calendar_days %}
+
+            {% if day %}
+
+                <div class="calendar-day">
+
+                    <div class="day-number">
+                        {{ day }}
+                    </div>
+
+                    {% for shift in shifts %}
+
+                        {% if shift[3] == "%04d-%02d-%02d"|format(year, month, day) %}
+
+                            <div class="calendar-shift">
+
+                                <strong>
+                                    {{ shift[1] }} {{ shift[2] }}
+                                </strong>
+
+                                <span>
+                                    {{ shift[4] }} – {{ shift[5] }}
+                                </span>
+
+                                <small>
+                                    {{ shift[6] }}
+                                </small>
+
+                            </div>
+
+                        {% endif %}
+
+                    {% endfor %}
+
+                </div>
+
+            {% else %}
+
+                <div class="calendar-day empty-day"></div>
+
+            {% endif %}
+
+        {% endfor %}
+
+    </div>
+
+</main>
+
+</body>
+</html>
+

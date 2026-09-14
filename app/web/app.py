@@ -1,5 +1,7 @@
 """Webová aplikácia Shift Planner."""
 
+from calendar import monthrange
+from datetime import date
 from flask import Flask, render_template, request, redirect
 
 from app.data.database import create_tables
@@ -74,5 +76,44 @@ def add_shift_page():
     )
 
 
+@app.route("/calendar")
+def calendar_page():
+    create_tables()
+
+    today = date.today()
+
+    year = request.args.get("year", today.year, type=int)
+    month = request.args.get("month", today.month, type=int)
+
+    if month < 1:
+        month = 12
+        year -= 1
+
+    if month > 12:
+        month = 1
+        year += 1
+
+    shifts = get_shifts()
+
+    calendar_days = []
+
+    first_weekday, days_in_month = monthrange(year, month)
+
+    for _ in range(first_weekday):
+        calendar_days.append(None)
+
+    for day in range(1, days_in_month + 1):
+        calendar_days.append(day)
+
+    return render_template(
+        "calendar.html",
+        year=year,
+        month=month,
+        calendar_days=calendar_days,
+        shifts=shifts,
+    )
+
+
 if __name__ == "__main__":
     app.run(debug=True)
+

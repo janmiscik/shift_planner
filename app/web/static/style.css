@@ -177,3 +177,91 @@ select:focus {
     }
 
 }
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.calendar-header h2 {
+    margin: 0;
+}
+
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.calendar-day-name {
+    padding: 15px;
+    background: #111827;
+    color: white;
+    text-align: center;
+    font-weight: bold;
+}
+
+.calendar-day {
+    min-height: 130px;
+    padding: 10px;
+    border-right: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+}
+
+.empty-day {
+    background: #f9fafb;
+}
+
+.day-number {
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.calendar-shift {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px;
+    margin-bottom: 6px;
+    border-radius: 7px;
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    font-size: 12px;
+}
+
+.calendar-shift strong {
+    font-size: 12px;
+}
+
+.calendar-shift span {
+    color: #374151;
+}
+
+.calendar-shift small {
+    color: #6b7280;
+}
+
+@media (max-width: 800px) {
+
+    .calendar-day {
+        min-height: 100px;
+        padding: 6px;
+    }
+
+    .calendar-shift {
+        font-size: 10px;
+        padding: 5px;
+    }
+
+    .calendar-day-name {
+        padding: 10px 4px;
+        font-size: 12px;
+    }
+
+}
