@@ -15,10 +15,12 @@ def home():
     create_tables()
 
     employees = get_employees()
+    shifts = get_shifts()
 
     return render_template(
-        "employees.html",
+        "dashboard.html",
         employees=employees,
+        shifts=shifts,
     )
 
 

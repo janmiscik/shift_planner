@@ -1,0 +1,159 @@
+```html
+<!DOCTYPE html>
+<html lang="sk">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Dashboard - Shift Planner</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<header>
+
+    <h1>SHIFT PLANNER</h1>
+
+    <nav>
+        <a href="/">Dashboard</a>
+        <a href="/employees/add">Zamestnanci</a>
+        <a href="/shifts">Smeny</a>
+    </nav>
+
+</header>
+
+<main>
+
+    <div class="page-header">
+
+        <div>
+            <h2>Dashboard</h2>
+            <p>Prehľad plánovania smien</p>
+        </div>
+
+    </div>
+
+
+    <div class="dashboard-grid">
+
+        <div class="stat-card">
+
+            <div class="stat-title">
+                Zamestnanci
+            </div>
+
+            <div class="stat-number">
+                {{ employees|length }}
+            </div>
+
+            <a href="/" class="stat-link">
+                Zobraziť zamestnancov →
+            </a>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <div class="stat-title">
+                Naplánované smeny
+            </div>
+
+            <div class="stat-number">
+                {{ shifts|length }}
+            </div>
+
+            <a href="/shifts" class="stat-link">
+                Zobraziť smeny →
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <div class="page-header">
+
+        <h2>Najbližšie smeny</h2>
+
+        <a class="btn" href="/shifts/add">
+            + Pridať smenu
+        </a>
+
+    </div>
+
+
+    <div class="card">
+
+        {% if shifts %}
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>Zamestnanec</th>
+                        <th>Dátum</th>
+                        <th>Čas</th>
+                        <th>Typ</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for shift in shifts[:5] %}
+
+                        <tr>
+
+                            <td>
+                                {{ shift[1] }} {{ shift[2] }}
+                            </td>
+
+                            <td>
+                                {{ shift[3] }}
+                            </td>
+
+                            <td>
+                                {{ shift[4] }} – {{ shift[5] }}
+                            </td>
+
+                            <td>
+                                {{ shift[6] }}
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        {% else %}
+
+            <div class="empty">
+
+                <p>Zatiaľ nemáš naplánované žiadne smeny.</p>
+
+                <a class="btn" href="/shifts/add">
+                    Pridať prvú smenu
+                </a>
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</main>
+
+</body>
+</html>
+```
