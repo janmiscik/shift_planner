@@ -2,6 +2,7 @@
 
 from app.data.database import create_tables
 from app.services.employee_service import get_employees
+from app.services.shift_service import add_shift, get_shifts
 
 
 def main():
@@ -13,21 +14,40 @@ def main():
 
     employees = get_employees()
 
+    if not employees:
+        print("V databáze nie sú žiadni zamestnanci.")
+        return
+
+    employee = employees[0]
+
+    shift_id = add_shift(
+        employee_id=employee[0],
+        shift_date="2026-09-15",
+        start_time="06:00",
+        end_time="14:00",
+        shift_type="Ranná",
+    )
+
     print()
-    print("ZAMESTNANCI V DATABÁZE")
+    print("SMENA ULOŽENÁ")
+    print(f"ID smeny: {shift_id}")
+    print(
+        f"Zamestnanec: "
+        f"{employee[1]} {employee[2]}"
+    )
 
-    for employee in employees:
-        employee_id = employee[0]
-        first_name = employee[1]
-        last_name = employee[2]
-        position = employee[3]
-        employment_type = employee[4]
+    print()
+    print("SMENY V DATABÁZE")
 
+    shifts = get_shifts()
+
+    for shift in shifts:
         print(
-            f"{employee_id}. "
-            f"{first_name} {last_name} - "
-            f"{position} - "
-            f"{employment_type}"
+            f"{shift[0]}. "
+            f"{shift[1]} {shift[2]} | "
+            f"{shift[3]} | "
+            f"{shift[4]} - {shift[5]} | "
+            f"{shift[6]}"
         )
 
 

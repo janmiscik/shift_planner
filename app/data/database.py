@@ -31,5 +31,19 @@ def create_tables():
         """
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shifts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            employee_id INTEGER NOT NULL,
+            shift_date TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            shift_type TEXT NOT NULL,
+            FOREIGN KEY (employee_id) REFERENCES employees(id)
+        )
+        """
+    )
+
     connection.commit()
     connection.close()
