@@ -152,3 +152,34 @@ def delete_shift(shift_id):
 
     connection.commit()
     connection.close()
+
+def get_shifts_by_employee(employee_id):
+    """Načíta smeny konkrétneho zamestnanca."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            shifts.id,
+            employees.first_name,
+            employees.last_name,
+            shifts.shift_date,
+            shifts.start_time,
+            shifts.end_time,
+            shifts.shift_type
+        FROM shifts
+        JOIN employees
+            ON shifts.employee_id = employees.id
+        WHERE shifts.employee_id = ?
+        ORDER BY shifts.shift_date, shifts.start_time
+        """,
+        (employee_id,),
+    )
+
+    shifts = cursor.fetchall()
+    connection.close()
+
+    return shifts
+

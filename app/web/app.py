@@ -18,6 +18,7 @@ from app.services.shift_service import (
     add_shift,
     get_shift,
     get_shifts,
+    get_shifts_by_employee,
     update_shift,
     delete_shift,
 )
@@ -50,9 +51,21 @@ def add_employee_page():
             employment_type=request.form["employment_type"],
         )
 
-        return redirect("/")
+        return redirect("/employees")
 
     return render_template("add_employee.html")
+
+
+@app.route("/employees")
+def employees_page():
+    create_tables()
+
+    employees = get_employees()
+
+    return render_template(
+        "employees.html",
+        employees=employees,
+    )
 
 
 @app.route("/employees/edit/<int:employee_id>", methods=["GET", "POST"])
@@ -78,18 +91,6 @@ def edit_employee_page(employee_id):
     return render_template(
         "edit_employee.html",
         employee=employee,
-    )
-
-
-@app.route("/employees")
-def employees_page():
-    create_tables()
-
-    employees = get_employees()
-
-    return render_template(
-        "employees.html",
-        employees=employees,
     )
 
 
@@ -197,15 +198,17 @@ def calendar_page():
     year = request.args.get("year", today.year, type=int)
     month = request.args.get("month", today.month, type=int)
 
-    if month < 1:
-        month = 12
-        year -= 1
+    employee_id = request.args.get(
+        "employee_id",
+        type=int,
+    )
 
-    if month > 12:
-        month = 1
-        year += 1
+    employees = get_employees()
 
-    shifts = get_shifts()
+    if employee_id:
+        shifts = get_shifts_by_employee(employee_id)
+    else:
+        shifts = get_shifts()
 
     calendar_days = []
 
@@ -223,6 +226,8 @@ def calendar_page():
         month=month,
         calendar_days=calendar_days,
         shifts=shifts,
+        employees=employees,
+        selected_employee_id=employee_id,
     )
 
 
