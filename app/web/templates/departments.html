@@ -1,174 +1,148 @@
-<!DOCTYPE html>
-<html lang="sk">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% block title %}
+    Oddelenia - Shift Planner
+{% endblock %}
 
-    <title>Oddelenia - Shift Planner</title>
+{% block content %}
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+<div class="page-header">
 
-<body>
+    <div>
+        <h1>Oddelenia</h1>
 
-<header>
-
-    <h1>SHIFT PLANNER</h1>
-
-    <nav>
-        <a href="/">Dashboard</a>
-        <a href="/employees">Zamestnanci</a>
-        <a href="/departments">Oddelenia</a>
-        <a href="/shifts">Smeny</a>
-        <a href="/calendar">Kalendár</a>
-    </nav>
-
-</header>
-
-
-<main>
-
-    <div class="page-header">
-
-        <h2>Oddelenia</h2>
-
-        <a
-            class="btn"
-            href="/departments/add"
-        >
-            + Pridať oddelenie
-        </a>
-
+        <p>
+            Prehľad pracovných oddelení
+        </p>
     </div>
 
+    <a
+        class="btn"
+        href="/departments/add"
+    >
+        + Pridať oddelenie
+    </a>
 
-    <div class="card">
+</div>
 
-        {% if departments %}
 
-            <table>
+<div class="card">
 
-                <thead>
+    {% if departments %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>ID</th>
+                    <th>Názov</th>
+                    <th>Stav</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for department in departments %}
 
                     <tr>
-                        <th>ID</th>
-                        <th>Názov</th>
-                        <th>Stav</th>
-                        <th>Akcie</th>
-                    </tr>
 
-                </thead>
+                        <td>
+                            #{{ department[0] }}
+                        </td>
 
-
-                <tbody>
-
-                    {% for department in departments %}
-
-                        <tr>
-
-                            <td>
-                                {{ department[0] }}
-                            </td>
-
-
-                            <td>
+                        <td>
+                            <strong>
                                 {{ department[1] }}
-                            </td>
+                            </strong>
+                        </td>
 
+                        <td>
 
-                            <td>
+                            {% if department[2] %}
+
+                                <span class="status-active">
+                                    Aktívne
+                                </span>
+
+                            {% else %}
+
+                                <span class="status-inactive">
+                                    Neaktívne
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td class="actions">
+
+                            <a
+                                class="btn btn-small"
+                                href="/departments/edit/{{ department[0] }}"
+                            >
+                                ✏️ Upraviť
+                            </a>
+
+                            <form
+                                method="POST"
+                                action="/departments/toggle/{{ department[0] }}"
+                                onsubmit="return confirm('Naozaj chceš zmeniť stav tohto oddelenia?');"
+                            >
 
                                 {% if department[2] %}
 
-                                    <span class="status-active">
-                                        Aktívne
-                                    </span>
+                                    <button
+                                        type="submit"
+                                        class="btn btn-warning btn-small"
+                                    >
+                                        🔴 Deaktivovať
+                                    </button>
 
                                 {% else %}
 
-                                    <span class="status-inactive">
-                                        Neaktívne
-                                    </span>
+                                    <button
+                                        type="submit"
+                                        class="btn btn-success btn-small"
+                                    >
+                                        🟢 Aktivovať
+                                    </button>
 
                                 {% endif %}
 
-                            </td>
+                            </form>
 
+                        </td>
 
-                            <td class="actions">
+                    </tr>
 
-                                <a
-                                    class="btn btn-small"
-                                    href="/departments/edit/{{ department[0] }}"
-                                >
-                                    ✏️ Upraviť
-                                </a>
+                {% endfor %}
 
+            </tbody>
 
-                                <form
-                                    method="POST"
-                                    action="/departments/toggle/{{ department[0] }}"
-                                    onsubmit="return confirm('Naozaj chceš zmeniť stav tohto oddelenia?');"
-                                >
+        </table>
 
-                                    {% if department[2] %}
+    {% else %}
 
-                                        <button
-                                            type="submit"
-                                            class="btn btn-warning btn-small"
-                                        >
-                                            🔴 Deaktivovať
-                                        </button>
+        <div class="empty">
 
-                                    {% else %}
+            <p>
+                Zatiaľ nemáš žiadne oddelenia.
+            </p>
 
-                                        <button
-                                            type="submit"
-                                            class="btn btn-success btn-small"
-                                        >
-                                            🟢 Aktivovať
-                                        </button>
+            <a
+                class="btn"
+                href="/departments/add"
+            >
+                Pridať prvé oddelenie
+            </a>
 
-                                    {% endif %}
+        </div>
 
-                                </form>
+    {% endif %}
 
-                            </td>
+</div>
 
-                        </tr>
-
-                    {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        {% else %}
-
-            <div class="empty">
-
-                <p>
-                    Zatiaľ nemáš žiadne oddelenia.
-                </p>
-
-                <a
-                    class="btn"
-                    href="/departments/add"
-                >
-                    Pridať prvé oddelenie
-                </a>
-
-            </div>
-
-        {% endif %}
-
-    </div>
-
-</main>
-
-</body>
-</html>
+{% endblock %}

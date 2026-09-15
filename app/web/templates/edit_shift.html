@@ -1,61 +1,43 @@
-<!DOCTYPE html>
-<html lang="sk">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% block title %}
+    Upraviť smenu - Shift Planner
+{% endblock %}
 
-    <title>Upraviť smenu - Shift Planner</title>
+{% block content %}
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+<div class="page-header">
 
-<body>
+    <div>
+        <h1>Upraviť smenu</h1>
 
-<header>
-
-    <h1>SHIFT PLANNER</h1>
-
-    <nav>
-        <a href="/">Dashboard</a>
-        <a href="/employees">Zamestnanci</a>
-        <a href="/shifts">Smeny</a>
-        <a href="/calendar">Kalendár</a>
-    </nav>
-
-</header>
-
-
-<main>
-
-    <div class="page-header">
-
-        <h2>Upraviť smenu</h2>
-
+        <p>
+            Úprava naplánovanej pracovnej smeny
+        </p>
     </div>
 
-
-    <div class="card">
-
-        <form method="POST">
+</div>
 
 
-            <div class="form-group">
+<div class="card">
 
-                <label for="employee_id">
-                    Zamestnanec
-                </label>
+    <form method="post">
 
-                <select
-                    id="employee_id"
-                    name="employee_id"
-                    required
-                >
+        <div class="form-group">
 
-                    {% for employee in employees %}
+            <label for="employee_id">
+                Zamestnanec
+            </label>
+
+            <select
+                id="employee_id"
+                name="employee_id"
+                required
+            >
+
+                {% for employee in employees %}
+
+                    {% if employee[5] %}
 
                         <option
                             value="{{ employee[0] }}"
@@ -64,140 +46,151 @@
                             {% endif %}
                         >
                             {{ employee[1] }} {{ employee[2] }}
+                            — {{ employee[3] }}
                         </option>
 
-                    {% endfor %}
+                    {% endif %}
 
-                </select>
+                {% endfor %}
 
-            </div>
+            </select>
+
+        </div>
 
 
-            <div class="form-group">
+        <div class="form-group">
 
-                <label for="shift_date">
-                    Dátum
-                </label>
+            <label for="shift_date">
+                Dátum
+            </label>
 
-                <input
-                    type="date"
-                    id="shift_date"
-                    name="shift_date"
-                    value="{{ shift[2] }}"
-                    required
+            <input
+                type="date"
+                id="shift_date"
+                name="shift_date"
+                value="{{ shift[2] }}"
+                required
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="start_time">
+                Začiatok smeny
+            </label>
+
+            <input
+                type="time"
+                id="start_time"
+                name="start_time"
+                value="{{ shift[3] }}"
+                required
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="end_time">
+                Koniec smeny
+            </label>
+
+            <input
+                type="time"
+                id="end_time"
+                name="end_time"
+                value="{{ shift[4] }}"
+                required
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="shift_type">
+                Typ smeny
+            </label>
+
+            <select
+                id="shift_type"
+                name="shift_type"
+                required
+            >
+
+                <option
+                    value="Ranná"
+                    {% if shift[5] == "Ranná" %}
+                        selected
+                    {% endif %}
                 >
+                    Ranná
+                </option>
 
-            </div>
-
-
-            <div class="form-group">
-
-                <label for="start_time">
-                    Začiatok
-                </label>
-
-                <input
-                    type="time"
-                    id="start_time"
-                    name="start_time"
-                    value="{{ shift[3] }}"
-                    required
+                <option
+                    value="Medzismena"
+                    {% if shift[5] == "Medzismena" %}
+                        selected
+                    {% endif %}
                 >
+                    Medzismena
+                </option>
 
-            </div>
-
-
-            <div class="form-group">
-
-                <label for="end_time">
-                    Koniec
-                </label>
-
-                <input
-                    type="time"
-                    id="end_time"
-                    name="end_time"
-                    value="{{ shift[4] }}"
-                    required
+                <option
+                    value="Poobedná"
+                    {% if shift[5] == "Poobedná" %}
+                        selected
+                    {% endif %}
                 >
+                    Poobedná
+                </option>
 
-            </div>
-
-
-            <div class="form-group">
-
-                <label for="shift_type">
-                    Typ smeny
-                </label>
-
-                <select
-                    id="shift_type"
-                    name="shift_type"
-                    required
+                <option
+                    value="Nočná"
+                    {% if shift[5] == "Nočná" %}
+                        selected
+                    {% endif %}
                 >
+                    Nočná
+                </option>
 
-                    <option
-                        value="Ranná"
-                        {% if shift[5] == "Ranná" %}
-                            selected
-                        {% endif %}
-                    >
-                        Ranná
-                    </option>
+            </select>
+
+        </div>
 
 
-                    <option
-                        value="Medzismena"
-                        {% if shift[5] == "Medzismena" %}
-                            selected
-                        {% endif %}
-                    >
-                        Medzismena
-                    </option>
+        <div class="actions">
 
-
-                    <option
-                        value="Poobedná"
-                        {% if shift[5] == "Poobedná" %}
-                            selected
-                        {% endif %}
-                    >
-                        Poobedná
-                    </option>
-
-
-                    <option
-                        value="Nočná"
-                        {% if shift[5] == "Nočná" %}
-                            selected
-                        {% endif %}
-                    >
-                        Nočná
-                    </option>
-
-                </select>
-
-            </div>
-
-
-            <button class="btn" type="submit">
+            <button type="submit">
                 Uložiť zmeny
             </button>
 
-
             <a
-                class="btn btn-secondary"
                 href="/shifts"
+                class="btn btn-secondary"
             >
                 Zrušiť
             </a>
 
-        </form>
+        </div>
 
-    </div>
+    </form>
 
-</main>
+</div>
 
-</body>
-</html>
 
+<div style="margin-top: 20px;">
+
+    <a
+        href="/shifts"
+        class="btn btn-secondary"
+    >
+        ← Späť na smeny
+    </a>
+
+</div>
+
+{% endblock %}

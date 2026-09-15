@@ -1,145 +1,155 @@
-<!DOCTYPE html>
-<html lang="sk">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% block title %}
+    Smeny - Shift Planner
+{% endblock %}
 
-    <title>Smeny - Shift Planner</title>
+{% block content %}
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+<div class="page-header">
 
-<body>
+    <div>
+        <h1>Smeny</h1>
 
-<header>
-
-    <h1>SHIFT PLANNER</h1>
-
-    <nav>
-        <a href="/">Dashboard</a>
-        <a href="/">Zamestnanci</a>
-        <a href="/shifts">Smeny</a>
-        <a href="/calendar">Kalendár</a>
-    </nav>
-
-</header>
-
-<main>
-
-    <div class="page-header">
-
-        <h2>Smeny</h2>
-
-        <a class="btn" href="/shifts/add">
-            + Pridať smenu
-        </a>
-
+        <p>
+            Prehľad naplánovaných pracovných smien
+        </p>
     </div>
 
+    <a class="btn" href="/shifts/add">
+        + Pridať smenu
+    </a>
 
-    <div class="card">
+</div>
 
-        {% if shifts %}
 
-            <table>
+<div class="card">
 
-                <thead>
+    {% if shifts %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Zamestnanec</th>
+                    <th>Dátum</th>
+                    <th>Začiatok</th>
+                    <th>Koniec</th>
+                    <th>Typ smeny</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for shift in shifts %}
 
                     <tr>
-                        <th>Zamestnanec</th>
-                        <th>Dátum</th>
-                        <th>Začiatok</th>
-                        <th>Koniec</th>
-                        <th>Typ smeny</th>
-                        <th>Akcie</th>
+
+                        <td>
+                            <strong>
+                                {{ shift[1] }} {{ shift[2] }}
+                            </strong>
+                        </td>
+
+                        <td>
+                            {{ shift[3] }}
+                        </td>
+
+                        <td>
+                            {{ shift[4] }}
+                        </td>
+
+                        <td>
+                            {{ shift[5] }}
+                        </td>
+
+                        <td>
+
+                            {% if shift[6] == "Ranná" %}
+
+                                <span class="status-active">
+                                    {{ shift[6] }}
+                                </span>
+
+                            {% elif shift[6] == "Medzismena" %}
+
+                                <span
+                                    style="
+                                        display: inline-flex;
+                                        padding: 5px 10px;
+                                        border-radius: 999px;
+                                        background: #fef3c7;
+                                        color: #92400e;
+                                        font-size: 11px;
+                                        font-weight: 800;
+                                    "
+                                >
+                                    {{ shift[6] }}
+                                </span>
+
+                            {% else %}
+
+                                <span class="status-inactive">
+                                    {{ shift[6] }}
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td class="actions">
+
+                            <a
+                                class="btn btn-small"
+                                href="/shifts/edit/{{ shift[0] }}"
+                            >
+                                ✏️ Upraviť
+                            </a>
+
+                            <form
+                                method="POST"
+                                action="/shifts/delete/{{ shift[0] }}"
+                                onsubmit="return confirm('Naozaj chceš túto smenu zmazať?');"
+                            >
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-delete btn-small"
+                                >
+                                    🗑️ Zmazať
+                                </button>
+
+                            </form>
+
+                        </td>
+
                     </tr>
 
-                </thead>
+                {% endfor %}
 
+            </tbody>
 
-                <tbody>
+        </table>
 
-                    {% for shift in shifts %}
+    {% else %}
 
-                        <tr>
+        <div class="empty">
 
-                            <td>
-                                {{ shift[1] }} {{ shift[2] }}
-                            </td>
+            <p>
+                Žiadne smeny.
+            </p>
 
-                            <td>
-                                {{ shift[3] }}
-                            </td>
+            <a class="btn" href="/shifts/add">
+                Pridať prvú smenu
+            </a>
 
-                            <td>
-                                {{ shift[4] }}
-                            </td>
+        </div>
 
-                            <td>
-                                {{ shift[5] }}
-                            </td>
+    {% endif %}
 
-                            <td>
-                                {{ shift[6] }}
-                            </td>
+</div>
 
-                            <td class="actions">
-
-                                <a
-                                    class="btn btn-small"
-                                    href="/shifts/edit/{{ shift[0] }}"
-                                >
-                                    ✏️ Upraviť
-                                </a>
-
-
-                                <form
-                                    method="POST"
-                                    action="/shifts/delete/{{ shift[0] }}"
-                                    onsubmit="return confirm('Naozaj chceš túto smenu zmazať?');"
-                                >
-
-                                    <button
-                                        type="submit"
-                                        class="btn btn-delete btn-small"
-                                    >
-                                        🗑️ Zmazať
-                                    </button>
-
-                                </form>
-
-                            </td>
-
-                        </tr>
-
-                    {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        {% else %}
-
-            <div class="empty">
-
-                <p>Žiadne smeny.</p>
-
-                <a class="btn" href="/shifts/add">
-                    Pridať prvú smenu
-                </a>
-
-            </div>
-
-        {% endif %}
-
-    </div>
-
-</main>
-
-</body>
-</html>
-
+{% endblock %}

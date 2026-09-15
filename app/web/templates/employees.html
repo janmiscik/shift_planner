@@ -1,179 +1,152 @@
-<!DOCTYPE html>
-<html lang="sk">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% block title %}
+    Zamestnanci - Shift Planner
+{% endblock %}
 
-    <title>Zamestnanci - Shift Planner</title>
+{% block content %}
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+<div class="page-header">
 
-<body>
+    <div>
+        <h1>Zamestnanci</h1>
 
-<header>
-
-    <h1>SHIFT PLANNER</h1>
-
-    <nav>
-        <a href="/">Dashboard</a>
-        <a href="/employees">Zamestnanci</a>
-        <a href="/shifts">Smeny</a>
-        <a href="/calendar">Kalendár</a>
-    </nav>
-
-</header>
-
-
-<main>
-
-    <div class="page-header">
-
-        <h2>Zamestnanci</h2>
-
-        <a class="btn" href="/employees/add">
-            + Pridať zamestnanca
-        </a>
-
+        <p>
+            Prehľad všetkých zamestnancov
+        </p>
     </div>
 
+    <a class="btn" href="/employees/add">
+        + Pridať zamestnanca
+    </a>
 
-    <div class="card">
+</div>
 
-        {% if employees %}
 
-            <table>
+<div class="card">
 
-                <thead>
+    {% if employees %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>ID</th>
+                    <th>Meno</th>
+                    <th>Pozícia</th>
+                    <th>Úväzok</th>
+                    <th>Stav</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for employee in employees %}
 
                     <tr>
-                        <th>ID</th>
-                        <th>Meno</th>
-                        <th>Pozícia</th>
-                        <th>Úväzok</th>
-                        <th>Stav</th>
-                        <th>Akcie</th>
-                    </tr>
 
-                </thead>
+                        <td>
+                            #{{ employee[0] }}
+                        </td>
 
-
-                <tbody>
-
-                    {% for employee in employees %}
-
-                        <tr>
-
-                            <td>
-                                {{ employee[0] }}
-                            </td>
-
-
-                            <td>
+                        <td>
+                            <strong>
                                 {{ employee[1] }} {{ employee[2] }}
-                            </td>
+                            </strong>
+                        </td>
 
+                        <td>
+                            {{ employee[3] }}
+                        </td>
 
-                            <td>
-                                {{ employee[3] }}
-                            </td>
+                        <td>
+                            {{ employee[4] }}
+                        </td>
 
+                        <td>
 
-                            <td>
-                                {{ employee[4] }}
-                            </td>
+                            {% if employee[5] %}
 
+                                <span class="status-active">
+                                    Aktívny
+                                </span>
 
-                            <td>
+                            {% else %}
+
+                                <span class="status-inactive">
+                                    Neaktívny
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td class="actions">
+
+                            <a
+                                class="btn btn-small"
+                                href="/employees/edit/{{ employee[0] }}"
+                            >
+                                ✏️ Upraviť
+                            </a>
+
+                            <form
+                                method="POST"
+                                action="/employees/toggle/{{ employee[0] }}"
+                                onsubmit="return confirm('Naozaj chceš zmeniť stav tohto zamestnanca?');"
+                            >
 
                                 {% if employee[5] %}
 
-                                    <span class="status-active">
-                                        Aktívny
-                                    </span>
+                                    <button
+                                        type="submit"
+                                        class="btn btn-warning btn-small"
+                                    >
+                                        🔴 Deaktivovať
+                                    </button>
 
                                 {% else %}
 
-                                    <span class="status-inactive">
-                                        Neaktívny
-                                    </span>
+                                    <button
+                                        type="submit"
+                                        class="btn btn-success btn-small"
+                                    >
+                                        🟢 Aktivovať
+                                    </button>
 
                                 {% endif %}
 
-                            </td>
+                            </form>
 
+                        </td>
 
-                            <td class="actions">
+                    </tr>
 
-                                <a
-                                    class="btn btn-small"
-                                    href="/employees/edit/{{ employee[0] }}"
-                                >
-                                    ✏️ Upraviť
-                                </a>
+                {% endfor %}
 
+            </tbody>
 
-                                <form
-                                    method="POST"
-                                    action="/employees/toggle/{{ employee[0] }}"
-                                    onsubmit="return confirm('Naozaj chceš zmeniť stav tohto zamestnanca?');"
-                                >
+        </table>
 
-                                    {% if employee[5] %}
+    {% else %}
 
-                                        <button
-                                            type="submit"
-                                            class="btn btn-warning btn-small"
-                                        >
-                                            🔴 Deaktivovať
-                                        </button>
+        <div class="empty">
 
-                                    {% else %}
+            <p>
+                Zatiaľ nemáš žiadnych zamestnancov.
+            </p>
 
-                                        <button
-                                            type="submit"
-                                            class="btn btn-success btn-small"
-                                        >
-                                            🟢 Aktivovať
-                                        </button>
+            <a class="btn" href="/employees/add">
+                Pridať prvého zamestnanca
+            </a>
 
-                                    {% endif %}
+        </div>
 
-                                </form>
+    {% endif %}
 
-                            </td>
+</div>
 
-                        </tr>
-
-                    {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        {% else %}
-
-            <div class="empty">
-
-                <p>
-                    Zatiaľ nemáš žiadnych zamestnancov.
-                </p>
-
-                <a class="btn" href="/employees/add">
-                    Pridať prvého zamestnanca
-                </a>
-
-            </div>
-
-        {% endif %}
-
-    </div>
-
-</main>
-
-</body>
-</html>
+{% endblock %}

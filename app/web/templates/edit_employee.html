@@ -1,115 +1,170 @@
-<!DOCTYPE html>
-<html lang="sk">
-<head>
-    <meta charset="UTF-8">
-    <title>Upraviť zamestnanca</title>
+{% extends "base.html" %}
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+{% block title %}
+    Upraviť zamestnanca - Shift Planner
+{% endblock %}
 
-<body>
+{% block content %}
 
-<nav>
-    <a href="/">Dashboard</a>
-    <a href="/employees">Zamestnanci</a>
-    <a href="/departments">Oddelenia</a>
-    <a href="/shifts">Smeny</a>
-    <a href="/calendar">Kalendár</a>
-</nav>
+<div class="page-header">
 
-<div class="container">
+    <div>
+        <h1>Upraviť zamestnanca</h1>
 
-    <h1>Upraviť zamestnanca</h1>
+        <p>
+            Úprava údajov a pracovného zaradenia zamestnanca
+        </p>
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <h2>Základné údaje</h2>
 
     <form method="post">
 
-        <label for="first_name">
-            Meno
-        </label>
+        <div class="form-group">
 
-        <input
-            type="text"
-            id="first_name"
-            name="first_name"
-            value="{{ employee[1] }}"
-            required
-        >
+            <label for="first_name">
+                Meno
+            </label>
 
-        <label for="last_name">
-            Priezvisko
-        </label>
-
-        <input
-            type="text"
-            id="last_name"
-            name="last_name"
-            value="{{ employee[2] }}"
-            required
-        >
-
-        <label for="position">
-            Pozícia
-        </label>
-
-        <input
-            type="text"
-            id="position"
-            name="position"
-            value="{{ employee[3] }}"
-            required
-        >
-
-        <label for="employment_type">
-            Typ úväzku
-        </label>
-
-        <select
-            id="employment_type"
-            name="employment_type"
-            required
-        >
-            <option
-                value="full-time"
-                {% if employee[4] == "full-time" %}
-                    selected
-                {% endif %}
+            <input
+                type="text"
+                id="first_name"
+                name="first_name"
+                value="{{ employee[1] }}"
+                required
             >
-                Plný úväzok
-            </option>
 
-            <option
-                value="part-time"
-                {% if employee[4] == "part-time" %}
-                    selected
-                {% endif %}
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="last_name">
+                Priezvisko
+            </label>
+
+            <input
+                type="text"
+                id="last_name"
+                name="last_name"
+                value="{{ employee[2] }}"
+                required
             >
-                Čiastočný úväzok
-            </option>
-        </select>
 
-        <button type="submit">
-            Uložiť zmeny
-        </button>
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="position">
+                Pozícia
+            </label>
+
+            <input
+                type="text"
+                id="position"
+                name="position"
+                value="{{ employee[3] }}"
+                required
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="employment_type">
+                Typ úväzku
+            </label>
+
+            <select
+                id="employment_type"
+                name="employment_type"
+                required
+            >
+
+                <option
+                    value="full-time"
+                    {% if employee[4] == "full-time" %}
+                        selected
+                    {% endif %}
+                >
+                    Plný úväzok
+                </option>
+
+                <option
+                    value="part-time"
+                    {% if employee[4] == "part-time" %}
+                        selected
+                    {% endif %}
+                >
+                    Čiastočný úväzok
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
+                Uložiť zmeny
+            </button>
+
+            <a
+                href="/employees"
+                class="btn btn-secondary"
+            >
+                Zrušiť
+            </a>
+
+        </div>
 
     </form>
 
-    <hr>
+</div>
 
-    <h2>Oddelenia zamestnanca</h2>
+
+<div class="page-header" style="margin-top: 30px;">
+
+    <div>
+        <h2>Oddelenia zamestnanca</h2>
+
+        <p>
+            Rozdelenie pracovného času medzi jednotlivé oddelenia
+        </p>
+    </div>
+
+    <a
+        class="btn"
+        href="/employees/{{ employee[0] }}/departments/add"
+    >
+        + Pridať oddelenie
+    </a>
+
+</div>
+
+
+<div class="card">
 
     {% if assignments %}
 
         <table>
 
             <thead>
+
                 <tr>
                     <th>Oddelenie</th>
                     <th>Hodiny / týždeň</th>
-                    <th>Akcia</th>
+                    <th>Akcie</th>
                 </tr>
+
             </thead>
 
             <tbody>
@@ -119,29 +174,37 @@
                     <tr>
 
                         <td>
-                            {{ assignment[2] }}
+                            <strong>
+                                {{ assignment[2] }}
+                            </strong>
                         </td>
 
                         <td>
                             {{ assignment[3] }} h
                         </td>
 
-                        <td>
+                        <td class="actions">
 
                             <a
+                                class="btn btn-small"
                                 href="/employees/{{ employee[0] }}/departments/edit/{{ assignment[0] }}"
                             >
-                                Upraviť
+                                ✏️ Upraviť
                             </a>
 
                             <form
                                 method="post"
                                 action="/employees/{{ employee[0] }}/departments/delete/{{ assignment[0] }}"
-                                style="display: inline;"
+                                onsubmit="return confirm('Naozaj chceš odstrániť toto priradenie?');"
                             >
-                                <button type="submit">
-                                    Odstrániť
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-delete btn-small"
+                                >
+                                    🗑️ Odstrániť
                                 </button>
+
                             </form>
 
                         </td>
@@ -156,33 +219,52 @@
 
     {% else %}
 
-        <p>
-            Zamestnanec zatiaľ nemá priradené žiadne oddelenie.
-        </p>
+        <div class="empty">
+
+            <p>
+                Zamestnanec zatiaľ nemá priradené žiadne oddelenie.
+            </p>
+
+            <a
+                class="btn"
+                href="/employees/{{ employee[0] }}/departments/add"
+            >
+                + Pridať oddelenie
+            </a>
+
+        </div>
 
     {% endif %}
 
-    <p>
-        <strong>
-            Celkový úväzok podľa oddelení:
-        </strong>
+</div>
 
-        {{ total_weekly_hours }} h / týždeň
-    </p>
+
+<div class="card" style="margin-top: 20px;">
+
+    <div class="stat-title">
+        Celkový úväzok podľa oddelení
+    </div>
+
+    <div class="stat-number">
+        {{ total_weekly_hours }} h
+    </div>
 
     <p>
-        <a href="/employees/{{ employee[0] }}/departments/add">
-            + Pridať oddelenie
-        </a>
-    </p>
-
-    <p>
-        <a href="/employees">
-            ← Späť na zoznam zamestnancov
-        </a>
+        Celkový počet pracovných hodín za týždeň podľa priradených oddelení.
     </p>
 
 </div>
 
-</body>
-</html>
+
+<div style="margin-top: 20px;">
+
+    <a
+        href="/employees"
+        class="btn btn-secondary"
+    >
+        ← Späť na zoznam zamestnancov
+    </a>
+
+</div>
+
+{% endblock %}

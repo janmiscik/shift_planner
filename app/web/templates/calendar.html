@@ -1,218 +1,249 @@
-<!DOCTYPE html>
-<html lang="sk">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% block title %}
+    Kalendár - Shift Planner
+{% endblock %}
 
-    <title>Kalendár - Shift Planner</title>
+{% block content %}
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
+<div class="page-header">
+
+    <div>
+        <h1>Kalendár</h1>
+
+        <p>
+            Prehľad naplánovaných smien podľa dní
+        </p>
+    </div>
+
+    <a
+        class="btn"
+        href="/shifts/add"
     >
-</head>
+        + Pridať smenu
+    </a>
 
-<body>
-
-<header>
-
-    <h1>SHIFT PLANNER</h1>
-
-    <nav>
-        <a href="/">Dashboard</a>
-        <a href="/employees">Zamestnanci</a>
-        <a href="/shifts">Smeny</a>
-        <a href="/calendar">Kalendár</a>
-    </nav>
-
-</header>
+</div>
 
 
-<main>
+<div class="calendar-filter">
 
-    <div class="calendar-header">
+    <form
+        method="GET"
+        action="/calendar"
+    >
 
-        <a
-            class="btn"
-            href="/calendar?year={{ year if month > 1 else year - 1 }}&month={{ month - 1 if month > 1 else 12 }}{% if selected_employee_id %}&employee_id={{ selected_employee_id }}{% endif %}"
+        <input
+            type="hidden"
+            name="year"
+            value="{{ year }}"
         >
-            ←
-        </a>
 
-
-        <h2>
-            {{ month }} / {{ year }}
-        </h2>
-
-
-        <a
-            class="btn"
-            href="/calendar?year={{ year if month < 12 else year + 1 }}&month={{ month + 1 if month < 12 else 1 }}{% if selected_employee_id %}&employee_id={{ selected_employee_id }}{% endif %}"
+        <input
+            type="hidden"
+            name="month"
+            value="{{ month }}"
         >
-            →
-        </a>
 
+        <label for="employee_id">
+            Zamestnanec
+        </label>
+
+        <select
+            id="employee_id"
+            name="employee_id"
+            onchange="this.form.submit()"
+        >
+
+            <option value="">
+                Všetci zamestnanci
+            </option>
+
+            {% for employee in employees %}
+
+                <option
+                    value="{{ employee[0] }}"
+                    {% if selected_employee_id == employee[0] %}
+                        selected
+                    {% endif %}
+                >
+                    {{ employee[1] }} {{ employee[2] }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+    </form>
+
+</div>
+
+
+<div class="calendar-header">
+
+    <a
+        class="btn btn-secondary"
+        href="/calendar?year={{ year if month > 1 else year - 1 }}&month={{ month - 1 if month > 1 else 12 }}{% if selected_employee_id %}&employee_id={{ selected_employee_id }}{% endif %}"
+    >
+        ←
+    </a>
+
+
+    <h2>
+        {{ month }} / {{ year }}
+    </h2>
+
+
+    <a
+        class="btn btn-secondary"
+        href="/calendar?year={{ year if month < 12 else year + 1 }}&month={{ month + 1 if month < 12 else 1 }}{% if selected_employee_id %}&employee_id={{ selected_employee_id }}{% endif %}"
+    >
+        →
+    </a>
+
+</div>
+
+
+<div class="calendar">
+
+    <div class="calendar-day-name">
+        Po
+    </div>
+
+    <div class="calendar-day-name">
+        Ut
+    </div>
+
+    <div class="calendar-day-name">
+        St
+    </div>
+
+    <div class="calendar-day-name">
+        Št
+    </div>
+
+    <div class="calendar-day-name">
+        Pi
+    </div>
+
+    <div class="calendar-day-name">
+        So
+    </div>
+
+    <div class="calendar-day-name">
+        Ne
     </div>
 
 
-    <div class="calendar-filter">
+    {% for day in calendar_days %}
 
-        <form method="GET" action="/calendar">
+        {% if day %}
 
-            <input
-                type="hidden"
-                name="year"
-                value="{{ year }}"
+            <a
+                class="calendar-day calendar-day-link"
+                href="/shifts/add?date={{ '%04d-%02d-%02d'|format(year, month, day) }}"
             >
 
-            <input
-                type="hidden"
-                name="month"
-                value="{{ month }}"
-            >
+                <div class="day-number">
+                    {{ day }}
+                </div>
 
 
-            <label for="employee_id">
-                Zamestnanec
-            </label>
+                {% for shift in shifts %}
+
+                    {% if shift[3] == "%04d-%02d-%02d"|format(year, month, day) %}
 
 
-            <select
-                id="employee_id"
-                name="employee_id"
-                onchange="this.form.submit()"
-            >
+                        {% if shift[6] == "Ranná" %}
 
-                <option value="">
-                    Všetci zamestnanci
-                </option>
+                            <div class="calendar-shift shift-morning">
 
+                        {% elif shift[6] == "Medzismena" %}
 
-                {% for employee in employees %}
+                            <div class="calendar-shift shift-mid">
 
-                    <option
-                        value="{{ employee[0] }}"
-                        {% if selected_employee_id == employee[0] %}
-                            selected
+                        {% elif shift[6] == "Poobedná" %}
+
+                            <div class="calendar-shift shift-afternoon">
+
+                        {% elif shift[6] == "Nočná" %}
+
+                            <div class="calendar-shift shift-night">
+
+                        {% else %}
+
+                            <div class="calendar-shift">
+
                         {% endif %}
-                    >
-                        {{ employee[1] }} {{ employee[2] }}
-                    </option>
+
+                                <strong>
+                                    {{ shift[1] }} {{ shift[2] }}
+                                </strong>
+
+                                <span>
+                                    {{ shift[4] }} – {{ shift[5] }}
+                                </span>
+
+                                <small>
+                                    {{ shift[6] }}
+                                </small>
+
+                            </div>
+
+                    {% endif %}
 
                 {% endfor %}
 
-            </select>
+            </a>
 
-        </form>
+        {% else %}
 
-    </div>
+            <div class="calendar-day empty-day"></div>
 
+        {% endif %}
 
-    <div class="calendar">
+    {% endfor %}
 
-        <div class="calendar-day-name">Po</div>
-        <div class="calendar-day-name">Ut</div>
-        <div class="calendar-day-name">St</div>
-        <div class="calendar-day-name">Št</div>
-        <div class="calendar-day-name">Pi</div>
-        <div class="calendar-day-name">So</div>
-        <div class="calendar-day-name">Ne</div>
+</div>
 
 
-        {% for day in calendar_days %}
+<div class="shift-legend">
 
-            {% if day %}
+    <div class="legend-item">
 
-                <a
-                    class="calendar-day calendar-day-link"
-                    href="/shifts/add?date={{ '%04d-%02d-%02d'|format(year, month, day) }}"
-                >
+        <span class="legend-color legend-morning"></span>
 
-                    <div class="day-number">
-                        {{ day }}
-                    </div>
-
-
-                    {% for shift in shifts %}
-
-                        {% if shift[3] == "%04d-%02d-%02d"|format(year, month, day) %}
-
-
-                            {% if shift[6] == "Ranná" %}
-
-                                <div class="calendar-shift shift-morning">
-
-                            {% elif shift[6] == "Medzismena" %}
-
-                                <div class="calendar-shift shift-mid">
-
-                            {% elif shift[6] == "Poobedná" %}
-
-                                <div class="calendar-shift shift-afternoon">
-
-                            {% elif shift[6] == "Nočná" %}
-
-                                <div class="calendar-shift shift-night">
-
-                            {% else %}
-
-                                <div class="calendar-shift">
-
-                            {% endif %}
-
-
-                                    <strong>
-                                        {{ shift[1] }} {{ shift[2] }}
-                                    </strong>
-
-                                    <span>
-                                        {{ shift[4] }} – {{ shift[5] }}
-                                    </span>
-
-                                    <small>
-                                        {{ shift[6] }}
-                                    </small>
-
-
-                                </div>
-
-                        {% endif %}
-
-                    {% endfor %}
-
-                </a>
-
-            {% else %}
-
-                <div class="calendar-day empty-day"></div>
-
-            {% endif %}
-
-        {% endfor %}
+        Ranná
 
     </div>
 
 
-    <div class="shift-legend">
+    <div class="legend-item">
 
-        <div class="legend-item">
-            <span class="legend-color legend-morning"></span>
-            Ranná
-        </div>
+        <span class="legend-color legend-mid"></span>
 
+        Medzismena
 
-        <div class="legend-item">
-            <span class="legend-color legend-mid"></span>
-            Medzismena
-        </div>
+    </div>
 
 
-        <div class="legend-item">
-            <span class="legend-color legend-afternoon"></span>
-            Poobedná
-        </div>
+    <div class="legend-item">
+
+        <span class="legend-color legend-afternoon"></span>
+
+        Poobedná
+
+    </div>
 
 
-        <div class="legend-item">
-            <span class="lege
+    <div class="legend-item">
+
+        <span class="legend-color legend-night"></span>
+
+        Nočná
+
+    </div>
+
+</div>
+
+{% endblock %}

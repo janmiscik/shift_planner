@@ -1,78 +1,120 @@
-<!DOCTYPE html>
-<html lang="sk">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pridať zamestnanca - Shift Planner</title>
-</head>
+{% extends "base.html" %}
 
-<body>
+{% block title %}
+    Pridať zamestnanca - Shift Planner
+{% endblock %}
 
-    <h1>SHIFT PLANNER</h1>
+{% block content %}
 
-    <h2>Pridať zamestnanca</h2>
+<div class="page-header">
+
+    <div>
+        <h1>Pridať zamestnanca</h1>
+
+        <p>
+            Pridanie nového zamestnanca do systému
+        </p>
+    </div>
+
+</div>
+
+
+<div class="card">
 
     <form method="POST">
 
-        <div>
-            <label for="first_name">Meno:</label>
+        <div class="form-group">
+
+            <label for="first_name">
+                Meno
+            </label>
+
             <input
                 type="text"
                 id="first_name"
                 name="first_name"
+                placeholder="Zadaj meno"
                 required
             >
+
         </div>
 
-        <br>
 
-        <div>
-            <label for="last_name">Priezvisko:</label>
+        <div class="form-group">
+
+            <label for="last_name">
+                Priezvisko
+            </label>
+
             <input
                 type="text"
                 id="last_name"
                 name="last_name"
+                placeholder="Zadaj priezvisko"
                 required
             >
+
         </div>
 
-        <br>
 
-        <div>
-            <label for="position">Pozícia:</label>
+        <div class="form-group">
+
+            <label for="position">
+                Pozícia
+            </label>
+
             <input
                 type="text"
                 id="position"
                 name="position"
+                placeholder="Napr. Operátor"
                 required
             >
+
         </div>
 
-        <br>
 
-        <div>
-            <label for="employment_type">Úväzok:</label>
+        <div class="form-group">
+
+            <label for="employment_type">
+                Úväzok
+            </label>
 
             <select
                 id="employment_type"
                 name="employment_type"
             >
-                <option value="full-time">Full-time</option>
-                <option value="part-time">Part-time</option>
+
+                <option value="full-time">
+                    Full-time
+                </option>
+
+                <option value="part-time">
+                    Part-time
+                </option>
+
             </select>
+
         </div>
 
-        <br>
 
-        <button type="submit">
-            Uložiť zamestnanca
-        </button>
+        <div class="actions">
+
+            <button type="submit">
+                Uložiť zamestnanca
+            </button>
+
+            <a
+                href="/employees"
+                class="btn btn-secondary"
+            >
+                Zrušiť
+            </a>
+
+        </div>
 
     </form>
 
-    <br>
+</div>
 
-    <a href="/">Späť na zoznam</a>
-
-</body>
-</html>
+{% endblock %}

@@ -1,164 +1,176 @@
-<!DOCTYPE html>
-<html lang="sk">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% block title %}
+    Pridať smenu - Shift Planner
+{% endblock %}
 
-    <title>Pridať smenu - Shift Planner</title>
+{% block content %}
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+<div class="page-header">
 
-<body>
+    <div>
+        <h1>Pridať smenu</h1>
 
-<header>
-
-    <h1>SHIFT PLANNER</h1>
-
-    <nav>
-        <a href="/">Dashboard</a>
-        <a href="/employees">Zamestnanci</a>
-        <a href="/shifts">Smeny</a>
-        <a href="/calendar">Kalendár</a>
-    </nav>
-
-</header>
-
-
-<main>
-
-    <div class="page-header">
-
-        <h2>Pridať smenu</h2>
-
+        <p>
+            Naplánovanie novej pracovnej smeny
+        </p>
     </div>
 
-
-    <div class="card">
-
-        <form method="POST">
+</div>
 
 
-            <div class="form-group">
+<div class="card">
 
-                <label for="employee_id">
-                    Zamestnanec
-                </label>
+    <form method="post">
 
-                <select
-                    id="employee_id"
-                    name="employee_id"
-                    required
-                >
+        <div class="form-group">
 
-                    {% for employee in employees %}
+            <label for="employee_id">
+                Zamestnanec
+            </label>
+
+            <select
+                id="employee_id"
+                name="employee_id"
+                required
+            >
+
+                <option value="">
+                    -- Vyber zamestnanca --
+                </option>
+
+                {% for employee in employees %}
+
+                    {% if employee[5] %}
 
                         <option value="{{ employee[0] }}">
                             {{ employee[1] }} {{ employee[2] }}
+                            — {{ employee[3] }}
                         </option>
 
-                    {% endfor %}
+                    {% endif %}
 
-                </select>
+                {% endfor %}
 
-            </div>
+            </select>
 
-
-            <div class="form-group">
-
-                <label for="shift_date">
-                    Dátum
-                </label>
-
-                <input
-                    type="date"
-                    id="shift_date"
-                    name="shift_date"
-                    value="{{ selected_date }}"
-                    required
-                >
-
-            </div>
+        </div>
 
 
-            <div class="form-group">
+        <div class="form-group">
 
-                <label for="start_time">
-                    Začiatok
-                </label>
+            <label for="shift_date">
+                Dátum
+            </label>
 
-                <input
-                    type="time"
-                    id="start_time"
-                    name="start_time"
-                    required
-                >
+            <input
+                type="date"
+                id="shift_date"
+                name="shift_date"
+                required
+            >
 
-            </div>
-
-
-            <div class="form-group">
-
-                <label for="end_time">
-                    Koniec
-                </label>
-
-                <input
-                    type="time"
-                    id="end_time"
-                    name="end_time"
-                    required
-                >
-
-            </div>
+        </div>
 
 
-            <div class="form-group">
+        <div class="form-group">
 
-                <label for="shift_type">
-                    Typ smeny
-                </label>
+            <label for="start_time">
+                Začiatok smeny
+            </label>
 
-                <select
-                    id="shift_type"
-                    name="shift_type"
-                    required
-                >
+            <input
+                type="time"
+                id="start_time"
+                name="start_time"
+                required
+            >
 
-                    <option value="Ranná">
-                        Ranná
-                    </option>
-
-                    <option value="Medzismena">
-                        Medzismena
-                    </option>
-
-                    <option value="Poobedná">
-                        Poobedná
-                    </option>
-
-                    <option value="Nočná">
-                        Nočná
-                    </option>
-
-                </select>
-
-            </div>
+        </div>
 
 
-            <button class="btn" type="submit">
+        <div class="form-group">
+
+            <label for="end_time">
+                Koniec smeny
+            </label>
+
+            <input
+                type="time"
+                id="end_time"
+                name="end_time"
+                required
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="shift_type">
+                Typ smeny
+            </label>
+
+            <select
+                id="shift_type"
+                name="shift_type"
+                required
+            >
+
+                <option value="">
+                    -- Vyber typ smeny --
+                </option>
+
+                <option value="Ranná">
+                    Ranná
+                </option>
+
+                <option value="Medzismena">
+                    Medzismena
+                </option>
+
+                <option value="Poobedná">
+                    Poobedná
+                </option>
+
+                <option value="Nočná">
+                    Nočná
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
                 Uložiť smenu
             </button>
 
-        </form>
+            <a
+                href="/shifts"
+                class="btn btn-secondary"
+            >
+                Zrušiť
+            </a>
 
-    </div>
+        </div>
 
-</main>
+    </form>
 
-</body>
-</html>
+</div>
+
+
+<div style="margin-top: 20px;">
+
+    <a
+        href="/shifts"
+        class="btn btn-secondary"
+    >
+        ← Späť na smeny
+    </a>
+
+</div>
+
+{% endblock %}

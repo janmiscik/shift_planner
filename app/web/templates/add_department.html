@@ -1,85 +1,74 @@
-<!DOCTYPE html>
-<html lang="sk">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% block title %}
+    Pridať oddelenie - Shift Planner
+{% endblock %}
 
-    <title>Pridať oddelenie - Shift Planner</title>
+{% block content %}
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+<div class="page-header">
 
-<body>
+    <div>
+        <h1>Pridať oddelenie</h1>
 
-<header>
-
-    <h1>SHIFT PLANNER</h1>
-
-    <nav>
-        <a href="/">Dashboard</a>
-        <a href="/employees">Zamestnanci</a>
-        <a href="/departments">Oddelenia</a>
-        <a href="/shifts">Smeny</a>
-        <a href="/calendar">Kalendár</a>
-    </nav>
-
-</header>
-
-
-<main>
-
-    <div class="page-header">
-
-        <h2>Pridať oddelenie</h2>
-
+        <p>
+            Pridanie nového pracovného oddelenia
+        </p>
     </div>
 
-
-    <div class="card">
-
-        <form method="POST">
-
-            <div class="form-group">
-
-                <label for="name">
-                    Názov oddelenia
-                </label>
-
-                <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    placeholder="Napr. Mliečne"
-                    required
-                >
-
-            </div>
+</div>
 
 
-            <button
-                class="btn"
-                type="submit"
+<div class="card">
+
+    <form method="post">
+
+        <div class="form-group">
+
+            <label for="name">
+                Názov oddelenia
+            </label>
+
+            <input
+                type="text"
+                id="name"
+                name="name"
+                placeholder="Napr. Výroba"
+                required
             >
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
                 Uložiť oddelenie
             </button>
 
-
             <a
-                class="btn btn-secondary"
                 href="/departments"
+                class="btn btn-secondary"
             >
                 Zrušiť
             </a>
 
-        </form>
+        </div>
 
-    </div>
+    </form>
 
-</main>
+</div>
 
-</body>
-</html>
+
+<div style="margin-top: 20px;">
+
+    <a
+        href="/departments"
+        class="btn btn-secondary"
+    >
+        ← Späť na oddelenia
+    </a>
+
+</div>
+
+{% endblock %}
