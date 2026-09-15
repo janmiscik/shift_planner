@@ -3,6 +3,51 @@
 from app.data.database import get_connection
 
 
+def has_shift_collision(
+    employee_id,
+    shift_date,
+    start_time,
+    end_time,
+    exclude_shift_id=None,
+):
+    """Overí, či sa smena prekrýva s existujúcou smenou."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    query = """
+        SELECT id
+        FROM shifts
+        WHERE employee_id = ?
+          AND shift_date = ?
+          AND (? < end_time AND ? > start_time)
+    """
+
+    params = [
+        employee_id,
+        shift_date,
+        start_time,
+        end_time,
+    ]
+
+    if exclude_shift_id is not None:
+        query += """
+            AND id != ?
+        """
+        params.append(exclude_shift_id)
+
+    cursor.execute(
+        query,
+        tuple(params),
+    )
+
+    collision = cursor.fetchone()
+
+    connection.close()
+
+    return collision is not None
+
+
 def add_shift(
     employee_id,
     shift_date,
@@ -153,6 +198,7 @@ def delete_shift(shift_id):
     connection.commit()
     connection.close()
 
+
 def get_shifts_by_employee(employee_id):
     """Načíta smeny konkrétneho zamestnanca."""
 
@@ -182,4 +228,3 @@ def get_shifts_by_employee(employee_id):
     connection.close()
 
     return shifts
-

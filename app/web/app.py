@@ -3,7 +3,13 @@
 from calendar import monthrange
 from datetime import date
 
-from flask import Flask, redirect, render_template, request
+from flask import (
+    Flask,
+    flash,
+    redirect,
+    render_template,
+    request,
+)
 
 from app.data.database import create_tables
 
@@ -39,16 +45,17 @@ from app.services.shift_service import (
     get_shifts_by_employee,
     update_shift,
     delete_shift,
+    has_shift_collision,
 )
 
 
 app = Flask(__name__)
 
+app.secret_key = "shift-planner-secret-key"
+
 
 @app.route("/")
 def home():
-    create_tables()
-
     employees = get_employees()
     shifts = get_shifts()
 
@@ -61,8 +68,6 @@ def home():
 
 @app.route("/employees")
 def employees_page():
-    create_tables()
-
     employees = get_employees()
 
     return render_template(
@@ -73,8 +78,6 @@ def employees_page():
 
 @app.route("/employees/add", methods=["GET", "POST"])
 def add_employee_page():
-    create_tables()
-
     if request.method == "POST":
         add_employee(
             request.form["first_name"],
@@ -93,8 +96,6 @@ def add_employee_page():
     methods=["GET", "POST"],
 )
 def edit_employee_page(employee_id):
-    create_tables()
-
     employee = get_employee(employee_id)
 
     if employee is None:
@@ -130,8 +131,6 @@ def edit_employee_page(employee_id):
     methods=["GET", "POST"],
 )
 def add_employee_department_page(employee_id):
-    create_tables()
-
     employee = get_employee(employee_id)
 
     if employee is None:
@@ -171,8 +170,6 @@ def edit_employee_department_page(
     employee_id,
     assignment_id,
 ):
-    create_tables()
-
     employee = get_employee(employee_id)
 
     if employee is None:
@@ -217,8 +214,6 @@ def delete_employee_department_page(
     employee_id,
     assignment_id,
 ):
-    create_tables()
-
     assignment = get_employee_department(
         assignment_id
     )
@@ -243,8 +238,6 @@ def delete_employee_department_page(
     methods=["POST"],
 )
 def toggle_employee_page(employee_id):
-    create_tables()
-
     employee = get_employee(employee_id)
 
     if employee is None:
@@ -262,8 +255,6 @@ def toggle_employee_page(employee_id):
 
 @app.route("/departments")
 def departments_page():
-    create_tables()
-
     departments = get_departments()
 
     return render_template(
@@ -277,8 +268,6 @@ def departments_page():
     methods=["GET", "POST"],
 )
 def add_department_page():
-    create_tables()
-
     if request.method == "POST":
         add_department(
             request.form["name"]
@@ -294,8 +283,6 @@ def add_department_page():
     methods=["GET", "POST"],
 )
 def edit_department_page(department_id):
-    create_tables()
-
     department = get_department(department_id)
 
     if department is None:
@@ -320,8 +307,6 @@ def edit_department_page(department_id):
     methods=["POST"],
 )
 def toggle_department_page(department_id):
-    create_tables()
-
     department = get_department(department_id)
 
     if department is None:
@@ -339,8 +324,6 @@ def toggle_department_page(department_id):
 
 @app.route("/shifts")
 def shifts_page():
-    create_tables()
-
     shifts = get_shifts()
 
     return render_template(
@@ -354,17 +337,50 @@ def shifts_page():
     methods=["GET", "POST"],
 )
 def add_shift_page():
-    create_tables()
-
     employees = get_employees()
 
     if request.method == "POST":
+        employee_id = request.form["employee_id"]
+        shift_date = request.form["shift_date"]
+        start_time = request.form["start_time"]
+        end_time = request.form["end_time"]
+        shift_type = request.form["shift_type"]
+
+        if start_time >= end_time:
+            flash(
+                "Koniec smeny musí byť neskôr ako začiatok.",
+                "error",
+            )
+
+            return render_template(
+                "add_shift.html",
+                employees=employees,
+                selected_date=shift_date,
+            )
+
+        if has_shift_collision(
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+        ):
+            flash(
+                "Zamestnanec už má v tomto čase inú smenu.",
+                "error",
+            )
+
+            return render_template(
+                "add_shift.html",
+                employees=employees,
+                selected_date=shift_date,
+            )
+
         add_shift(
-            request.form["employee_id"],
-            request.form["shift_date"],
-            request.form["start_time"],
-            request.form["end_time"],
-            request.form["shift_type"],
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+            shift_type,
         )
 
         return redirect("/shifts")
@@ -386,8 +402,6 @@ def add_shift_page():
     methods=["GET", "POST"],
 )
 def edit_shift_page(shift_id):
-    create_tables()
-
     shift = get_shift(shift_id)
     employees = get_employees()
 
@@ -395,13 +409,49 @@ def edit_shift_page(shift_id):
         return "Smena neexistuje.", 404
 
     if request.method == "POST":
+        employee_id = request.form["employee_id"]
+        shift_date = request.form["shift_date"]
+        start_time = request.form["start_time"]
+        end_time = request.form["end_time"]
+        shift_type = request.form["shift_type"]
+
+        if start_time >= end_time:
+            flash(
+                "Koniec smeny musí byť neskôr ako začiatok.",
+                "error",
+            )
+
+            return render_template(
+                "edit_shift.html",
+                shift=shift,
+                employees=employees,
+            )
+
+        if has_shift_collision(
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+            exclude_shift_id=shift_id,
+        ):
+            flash(
+                "Zamestnanec už má v tomto čase inú smenu.",
+                "error",
+            )
+
+            return render_template(
+                "edit_shift.html",
+                shift=shift,
+                employees=employees,
+            )
+
         update_shift(
             shift_id,
-            request.form["employee_id"],
-            request.form["shift_date"],
-            request.form["start_time"],
-            request.form["end_time"],
-            request.form["shift_type"],
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+            shift_type,
         )
 
         return redirect("/shifts")
@@ -418,8 +468,6 @@ def edit_shift_page(shift_id):
     methods=["POST"],
 )
 def delete_shift_page(shift_id):
-    create_tables()
-
     delete_shift(shift_id)
 
     return redirect("/shifts")
@@ -427,8 +475,6 @@ def delete_shift_page(shift_id):
 
 @app.route("/calendar")
 def calendar_page():
-    create_tables()
-
     today = date.today()
 
     year = request.args.get(
@@ -483,4 +529,5 @@ def calendar_page():
 
 
 if __name__ == "__main__":
+    create_tables()
     app.run(debug=True)

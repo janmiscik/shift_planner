@@ -87,6 +87,35 @@
 
         <main class="page-content">
 
+            {% with messages = get_flashed_messages(with_categories=true) %}
+
+                {% if messages %}
+
+                    <div class="flash-messages">
+
+                        {% for category, message in messages %}
+
+                            <div
+                                class="flash-message flash-{{ category }}"
+                                role="alert"
+                            >
+                                <span class="flash-icon">
+                                    ⚠
+                                </span>
+
+                                <span>
+                                    {{ message }}
+                                </span>
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                {% endif %}
+
+            {% endwith %}
+
             {% block content %}
             {% endblock %}
 
