@@ -1,161 +1,144 @@
-<!DOCTYPE html>
-<html lang="sk">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% block title %}
+    Dashboard - Shift Planner
+{% endblock %}
 
-    <title>Dashboard - Shift Planner</title>
+{% block content %}
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+<div class="page-header">
 
-<body>
+    <div>
+        <h1>Dashboard</h1>
 
-<header>
-
-    <h1>SHIFT PLANNER</h1>
-
-    <nav>
-        <a href="/">Dashboard</a>
-        <a href="/employees">Zamestnanci</a>
-        <a href="/departments">Oddelenia</a>
-        <a href="/shifts">Smeny</a>
-        <a href="/calendar">Kalendár</a>
-    </nav>
-
-</header>
-
-<main>
-
-    <div class="page-header">
-
-        <div>
-            <h2>Dashboard</h2>
-            <p>Prehľad plánovania smien</p>
-        </div>
-
+        <p>
+            Prehľad plánovania smien
+        </p>
     </div>
 
+    <a class="btn" href="/shifts/add">
+        + Pridať smenu
+    </a>
 
-    <div class="dashboard-grid">
+</div>
 
-        <div class="stat-card">
 
-            <div class="stat-title">
-                Zamestnanci
-            </div>
+<div class="dashboard-grid">
 
-            <div class="stat-number">
-                {{ employees|length }}
-            </div>
+    <div class="stat-card">
 
-            <a href="/employees" class="stat-link">
-                Zobraziť zamestnancov →
-            </a>
-
+        <div class="stat-title">
+            Zamestnanci
         </div>
 
-
-        <div class="stat-card">
-
-            <div class="stat-title">
-                Naplánované smeny
-            </div>
-
-            <div class="stat-number">
-                {{ shifts|length }}
-            </div>
-
-            <a href="/shifts" class="stat-link">
-                Zobraziť smeny →
-            </a>
-
+        <div class="stat-number">
+            {{ employees|length }}
         </div>
 
-    </div>
-
-
-    <div class="page-header">
-
-        <h2>Najbližšie smeny</h2>
-
-        <a class="btn" href="/shifts/add">
-            + Pridať smenu
+        <a href="/employees" class="stat-link">
+            Zobraziť zamestnancov →
         </a>
 
     </div>
 
 
-    <div class="card">
+    <div class="stat-card">
 
-        {% if shifts %}
+        <div class="stat-title">
+            Naplánované smeny
+        </div>
 
-            <table>
+        <div class="stat-number">
+            {{ shifts|length }}
+        </div>
 
-                <thead>
-
-                    <tr>
-                        <th>Zamestnanec</th>
-                        <th>Dátum</th>
-                        <th>Čas</th>
-                        <th>Typ</th>
-                    </tr>
-
-                </thead>
-
-                <tbody>
-
-                    {% for shift in shifts[:5] %}
-
-                        <tr>
-
-                            <td>
-                                {{ shift[1] }} {{ shift[2] }}
-                            </td>
-
-                            <td>
-                                {{ shift[3] }}
-                            </td>
-
-                            <td>
-                                {{ shift[4] }} – {{ shift[5] }}
-                            </td>
-
-                            <td>
-                                {{ shift[6] }}
-                            </td>
-
-                        </tr>
-
-                    {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        {% else %}
-
-            <div class="empty">
-
-                <p>
-                    Zatiaľ nemáš naplánované žiadne smeny.
-                </p>
-
-                <a class="btn" href="/shifts/add">
-                    Pridať prvú smenu
-                </a>
-
-            </div>
-
-        {% endif %}
+        <a href="/shifts" class="stat-link">
+            Zobraziť smeny →
+        </a>
 
     </div>
 
-</main>
+</div>
 
-</body>
-</html>
+
+<div class="page-header">
+
+    <div>
+        <h2>Najbližšie smeny</h2>
+
+        <p>
+            Prehľad posledných naplánovaných smien
+        </p>
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    {% if shifts %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Zamestnanec</th>
+                    <th>Dátum</th>
+                    <th>Čas</th>
+                    <th>Typ</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for shift in shifts[:5] %}
+
+                    <tr>
+
+                        <td>
+                            <strong>
+                                {{ shift[1] }} {{ shift[2] }}
+                            </strong>
+                        </td>
+
+                        <td>
+                            {{ shift[3] }}
+                        </td>
+
+                        <td>
+                            {{ shift[4] }} – {{ shift[5] }}
+                        </td>
+
+                        <td>
+                            {{ shift[6] }}
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+
+            <p>
+                Zatiaľ nemáš naplánované žiadne smeny.
+            </p>
+
+            <a class="btn" href="/shifts/add">
+                Pridať prvú smenu
+            </a>
+
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

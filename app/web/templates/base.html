@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="sk">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        {% block title %}
+            Shift Planner
+        {% endblock %}
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<div class="app-shell">
+
+    <aside class="sidebar">
+
+        <div class="brand">
+            <div class="brand-mark">
+                SP
+            </div>
+
+            <div>
+                <div class="brand-title">
+                    SHIFT
+                </div>
+
+                <div class="brand-subtitle">
+                    PLANNER
+                </div>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <a href="/">
+                <span class="nav-icon">⌂</span>
+                <span>Dashboard</span>
+            </a>
+
+            <a href="/employees">
+                <span class="nav-icon">👥</span>
+                <span>Zamestnanci</span>
+            </a>
+
+            <a href="/departments">
+                <span class="nav-icon">▦</span>
+                <span>Oddelenia</span>
+            </a>
+
+            <a href="/shifts">
+                <span class="nav-icon">◷</span>
+                <span>Smeny</span>
+            </a>
+
+            <a href="/calendar">
+                <span class="nav-icon">▣</span>
+                <span>Kalendár</span>
+            </a>
+
+        </nav>
+
+    </aside>
+
+    <div class="app-content">
+
+        <header class="topbar">
+
+            <div>
+                {% block topbar %}
+                {% endblock %}
+            </div>
+
+        </header>
+
+        <main class="page-content">
+
+            {% block content %}
+            {% endblock %}
+
+        </main>
+
+        <footer class="app-footer">
+            Created by ©JanMi 2026
+        </footer>
+
+    </div>
+
+</div>
+
+</body>
+</html>
