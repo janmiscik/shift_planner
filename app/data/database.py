@@ -9,7 +9,13 @@ DATABASE_PATH = Path(__file__).parent / "shift_planner.db"
 
 def get_connection():
     """Vytvorí pripojenie k databáze."""
-    return sqlite3.connect(DATABASE_PATH)
+
+    connection = sqlite3.connect(DATABASE_PATH)
+
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+
+    return connection
 
 
 def create_tables():
@@ -36,10 +42,28 @@ def create_tables():
             last_name TEXT NOT NULL,
             position TEXT NOT NULL,
             employment_type TEXT NOT NULL,
-            active INTEGER NOT NULL DEFAULT 1,
-            department_id INTEGER,
+            active INTEGER NOT NULL DEFAULT 1
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS employee_departments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            employee_id INTEGER NOT NULL,
+            department_id INTEGER NOT NULL,
+            weekly_hours REAL NOT NULL,
+            FOREIGN KEY (employee_id)
+                REFERENCES employees(id)
+                ON DELETE CASCADE,
             FOREIGN KEY (department_id)
                 REFERENCES departments(id)
+                ON DELETE RESTRICT,
+            UNIQUE (
+                employee_id,
+                department_id
+            )
         )
         """
     )
@@ -55,9 +79,11 @@ def create_tables():
             shift_type TEXT NOT NULL,
             department_id INTEGER,
             FOREIGN KEY (employee_id)
-                REFERENCES employees(id),
+                REFERENCES employees(id)
+                ON DELETE CASCADE,
             FOREIGN KEY (department_id)
                 REFERENCES departments(id)
+                ON DELETE RESTRICT
         )
         """
     )
