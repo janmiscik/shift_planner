@@ -26,6 +26,9 @@ from app.services.department_service import (
 from app.services.employee_department_service import (
     add_employee_department,
     get_employee_departments,
+    get_employee_department,
+    update_employee_department,
+    delete_employee_department,
     get_employee_department_hours,
 )
 
@@ -151,6 +154,81 @@ def add_employee_department_page(employee_id):
         "add_employee_department.html",
         employee=employee,
         departments=departments,
+    )
+
+
+@app.route(
+    "/employees/<int:employee_id>/departments/edit/<int:assignment_id>",
+    methods=["GET", "POST"],
+)
+def edit_employee_department_page(
+    employee_id,
+    assignment_id,
+):
+    create_tables()
+
+    employee = get_employee(employee_id)
+
+    if employee is None:
+        return "Zamestnanec neexistuje.", 404
+
+    assignment = get_employee_department(
+        assignment_id
+    )
+
+    if assignment is None:
+        return "Priradenie neexistuje.", 404
+
+    if assignment[1] != employee_id:
+        return "Priradenie nepatrí tomuto zamestnancovi.", 404
+
+    departments = get_departments()
+
+    if request.method == "POST":
+        update_employee_department(
+            assignment_id=assignment_id,
+            department_id=request.form["department_id"],
+            weekly_hours=request.form["weekly_hours"],
+        )
+
+        return redirect(
+            f"/employees/edit/{employee_id}"
+        )
+
+    return render_template(
+        "edit_employee_department.html",
+        employee=employee,
+        assignment=assignment,
+        departments=departments,
+    )
+
+
+@app.route(
+    "/employees/<int:employee_id>/departments/delete/<int:assignment_id>",
+    methods=["POST"],
+)
+def delete_employee_department_page(
+    employee_id,
+    assignment_id,
+):
+    create_tables()
+
+    assignment = get_employee_department(
+        assignment_id
+    )
+
+    if assignment is None:
+        return "Priradenie neexistuje.", 404
+
+    if assignment[1] != employee_id:
+        return "Priradenie nepatrí tomuto zamestnancovi.", 404
+
+    delete_employee_department(
+        assignment_id
+    )
+
+    return redirect(
+        f"/employees/edit/{employee_id}"
     )
 
 

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>Upraviť oddelenie</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<nav>
+    <a href="/">Dashboard</a>
+    <a href="/employees">Zamestnanci</a>
+    <a href="/departments">Oddelenia</a>
+    <a href="/shifts">Smeny</a>
+    <a href="/calendar">Kalendár</a>
+</nav>
+
+<div class="container">
+
+    <h1>Upraviť oddelenie zamestnanca</h1>
+
+    <p>
+        <strong>Zamestnanec:</strong>
+        {{ employee[1] }} {{ employee[2] }}
+    </p>
+
+    <form method="post">
+
+        <label for="department_id">
+            Oddelenie
+        </label>
+
+        <select
+            id="department_id"
+            name="department_id"
+            required
+        >
+
+            {% for department in departments %}
+
+                {% if department[2] %}
+
+                    <option
+                        value="{{ department[0] }}"
+                        {% if department[0] == assignment[2] %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ department[1] }}
+                    </option>
+
+                {% endif %}
+
+            {% endfor %}
+
+        </select>
+
+        <label for="weekly_hours">
+            Hodiny za týždeň
+        </label>
+
+        <input
+            type="number"
+            id="weekly_hours"
+            name="weekly_hours"
+            min="0.5"
+            step="0.5"
+            value="{{ assignment[3] }}"
+            required
+        >
+
+        <button type="submit">
+            Uložiť zmeny
+        </button>
+
+    </form>
+
+    <p>
+        <a href="/employees/edit/{{ employee[0] }}">
+            ← Späť na zamestnanca
+        </a>
+    </p>
+
+</div>
+
+</body>
+</html>

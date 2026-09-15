@@ -21,8 +21,10 @@
 
     <nav>
         <a href="/">Dashboard</a>
-        <a href="/employees/add">Zamestnanci</a>
+        <a href="/employees">Zamestnanci</a>
+        <a href="/departments">Oddelenia</a>
         <a href="/shifts">Smeny</a>
+        <a href="/calendar">Kalendár</a>
     </nav>
 
 </header>
@@ -51,7 +53,7 @@
                 {{ employees|length }}
             </div>
 
-            <a href="/" class="stat-link">
+            <a href="/employees" class="stat-link">
                 Zobraziť zamestnancov →
             </a>
 
@@ -139,7 +141,9 @@
 
             <div class="empty">
 
-                <p>Zatiaľ nemáš naplánované žiadne smeny.</p>
+                <p>
+                    Zatiaľ nemáš naplánované žiadne smeny.
+                </p>
 
                 <a class="btn" href="/shifts/add">
                     Pridať prvú smenu
@@ -155,4 +159,3 @@
 
 </body>
 </html>
-
