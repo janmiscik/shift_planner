@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="sk">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Oddelenie už existuje</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<nav>
+    <a href="/">Dashboard</a>
+    <a href="/employees">Zamestnanci</a>
+    <a href="/departments">Oddelenia</a>
+    <a href="/shifts">Smeny</a>
+    <a href="/calendar">Kalendár</a>
+</nav>
+
+<div class="container">
+
+    <h1>Oddelenie už existuje</h1>
+
+    <p>
+        Toto oddelenie už má zamestnanec priradené.
+    </p>
+
+    <p>
+        Ak chceš zmeniť počet hodín, použi možnosť
+        <strong>Upraviť</strong>.
+    </p>
+
+    <p>
+        <a href="/employees/edit/{{ employee[0] }}">
+            ← Späť na zamestnanca
+        </a>
+    </p>
+
+</div>
+
+</body>
+</html>

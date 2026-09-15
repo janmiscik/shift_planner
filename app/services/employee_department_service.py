@@ -15,6 +15,25 @@ def add_employee_department(
 
     cursor.execute(
         """
+        SELECT id
+        FROM employee_departments
+        WHERE employee_id = ?
+          AND department_id = ?
+        """,
+        (
+            employee_id,
+            department_id,
+        ),
+    )
+
+    existing_assignment = cursor.fetchone()
+
+    if existing_assignment:
+        connection.close()
+        return None
+
+    cursor.execute(
+        """
         INSERT INTO employee_departments (
             employee_id,
             department_id,

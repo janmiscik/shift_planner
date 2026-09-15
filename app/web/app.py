@@ -140,11 +140,17 @@ def add_employee_department_page(employee_id):
     departments = get_departments()
 
     if request.method == "POST":
-        add_employee_department(
+        assignment_id = add_employee_department(
             employee_id=employee_id,
             department_id=request.form["department_id"],
             weekly_hours=request.form["weekly_hours"],
         )
+
+        if assignment_id is None:
+            return render_template(
+                "employee_department_duplicate.html",
+                employee=employee,
+            )
 
         return redirect(
             f"/employees/edit/{employee_id}"
