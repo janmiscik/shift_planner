@@ -14,9 +14,19 @@ def get_connection():
 
 def create_tables():
     """Vytvorí potrebné tabuľky."""
-    connection = get_connection()
 
+    connection = get_connection()
     cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS departments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            active INTEGER NOT NULL DEFAULT 1
+        )
+        """
+    )
 
     cursor.execute(
         """
@@ -26,7 +36,10 @@ def create_tables():
             last_name TEXT NOT NULL,
             position TEXT NOT NULL,
             employment_type TEXT NOT NULL,
-            active INTEGER NOT NULL DEFAULT 1
+            active INTEGER NOT NULL DEFAULT 1,
+            department_id INTEGER,
+            FOREIGN KEY (department_id)
+                REFERENCES departments(id)
         )
         """
     )
@@ -40,7 +53,11 @@ def create_tables():
             start_time TEXT NOT NULL,
             end_time TEXT NOT NULL,
             shift_type TEXT NOT NULL,
-            FOREIGN KEY (employee_id) REFERENCES employees(id)
+            department_id INTEGER,
+            FOREIGN KEY (employee_id)
+                REFERENCES employees(id),
+            FOREIGN KEY (department_id)
+                REFERENCES departments(id)
         )
         """
     )

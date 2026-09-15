@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="sk">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Oddelenia - Shift Planner</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<header>
+
+    <h1>SHIFT PLANNER</h1>
+
+    <nav>
+        <a href="/">Dashboard</a>
+        <a href="/employees">Zamestnanci</a>
+        <a href="/departments">Oddelenia</a>
+        <a href="/shifts">Smeny</a>
+        <a href="/calendar">Kalendár</a>
+    </nav>
+
+</header>
+
+
+<main>
+
+    <div class="page-header">
+
+        <h2>Oddelenia</h2>
+
+        <a
+            class="btn"
+            href="/departments/add"
+        >
+            + Pridať oddelenie
+        </a>
+
+    </div>
+
+
+    <div class="card">
+
+        {% if departments %}
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>ID</th>
+                        <th>Názov</th>
+                        <th>Stav</th>
+                        <th>Akcie</th>
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    {% for department in departments %}
+
+                        <tr>
+
+                            <td>
+                                {{ department[0] }}
+                            </td>
+
+
+                            <td>
+                                {{ department[1] }}
+                            </td>
+
+
+                            <td>
+
+                                {% if department[2] %}
+
+                                    <span class="status-active">
+                                        Aktívne
+                                    </span>
+
+                                {% else %}
+
+                                    <span class="status-inactive">
+                                        Neaktívne
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+
+                            <td class="actions">
+
+                                <a
+                                    class="btn btn-small"
+                                    href="/departments/edit/{{ department[0] }}"
+                                >
+                                    ✏️ Upraviť
+                                </a>
+
+
+                                <form
+                                    method="POST"
+                                    action="/departments/toggle/{{ department[0] }}"
+                                    onsubmit="return confirm('Naozaj chceš zmeniť stav tohto oddelenia?');"
+                                >
+
+                                    {% if department[2] %}
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-warning btn-small"
+                                        >
+                                            🔴 Deaktivovať
+                                        </button>
+
+                                    {% else %}
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-success btn-small"
+                                        >
+                                            🟢 Aktivovať
+                                        </button>
+
+                                    {% endif %}
+
+                                </form>
+
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        {% else %}
+
+            <div class="empty">
+
+                <p>
+                    Zatiaľ nemáš žiadne oddelenia.
+                </p>
+
+                <a
+                    class="btn"
+                    href="/departments/add"
+                >
+                    Pridať prvé oddelenie
+                </a>
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</main>
+
+</body>
+</html>
