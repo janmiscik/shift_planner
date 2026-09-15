@@ -139,9 +139,27 @@ def add_employee_department_page(employee_id):
     departments = get_departments()
 
     if request.method == "POST":
+        department_id = request.form["department_id"]
+
+        department = get_department(
+            department_id
+        )
+
+        if department is None or not department[2]:
+            flash(
+                "Neaktívne oddelenie nie je možné priradiť zamestnancovi.",
+                "error",
+            )
+
+            return render_template(
+                "add_employee_department.html",
+                employee=employee,
+                departments=departments,
+            )
+
         assignment_id = add_employee_department(
             employee_id=employee_id,
-            department_id=request.form["department_id"],
+            department_id=department_id,
             weekly_hours=request.form["weekly_hours"],
         )
 
