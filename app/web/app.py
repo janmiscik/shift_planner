@@ -346,6 +346,20 @@ def add_shift_page():
         end_time = request.form["end_time"]
         shift_type = request.form["shift_type"]
 
+        employee = get_employee(employee_id)
+
+        if employee is None or not employee[5]:
+            flash(
+                "Neaktívnemu zamestnancovi nie je možné pridať smenu.",
+                "error",
+            )
+
+            return render_template(
+                "add_shift.html",
+                employees=employees,
+                selected_date=shift_date,
+            )
+
         if start_time >= end_time:
             flash(
                 "Koniec smeny musí byť neskôr ako začiatok.",
