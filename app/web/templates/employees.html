@@ -35,7 +35,7 @@
                     <th>ID</th>
                     <th>Meno</th>
                     <th>Pozícia</th>
-                    <th>Úväzok</th>
+                    <th>Fond / týždeň</th>
                     <th>Stav</th>
                     <th>Akcie</th>
                 </tr>
@@ -63,7 +63,7 @@
                         </td>
 
                         <td>
-                            {{ employee[4] }}
+                            {{ employee[4] if employee[4] is not none else "—" }} h
                         </td>
 
                         <td>

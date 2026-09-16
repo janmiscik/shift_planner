@@ -83,9 +83,7 @@ def get_employee_departments(employee_id):
     return assignments
 
 
-def get_employee_department(
-    assignment_id,
-):
+def get_employee_department(assignment_id):
     """Načíta jedno priradenie."""
 
     connection = get_connection()
@@ -139,9 +137,7 @@ def update_employee_department(
     connection.close()
 
 
-def delete_employee_department(
-    assignment_id,
-):
+def delete_employee_department(assignment_id):
     """Odstráni priradenie zamestnanca k oddeleniu."""
 
     connection = get_connection()
@@ -159,9 +155,7 @@ def delete_employee_department(
     connection.close()
 
 
-def get_employee_department_hours(
-    employee_id,
-):
+def get_employee_department_hours(employee_id):
     """Vráti celkový počet hodín podľa oddelení."""
 
     connection = get_connection()
@@ -184,3 +178,96 @@ def get_employee_department_hours(
     connection.close()
 
     return weekly_hours
+
+
+def can_add_employee_department(
+    employee_id,
+    weekly_hours,
+):
+    """Overí, či nové priradenie neprekročí pracovný fond."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT weekly_hours
+        FROM employees
+        WHERE id = ?
+        """,
+        (employee_id,),
+    )
+
+    employee = cursor.fetchone()
+
+    if employee is None or employee[0] is None:
+        connection.close()
+        return False
+
+    cursor.execute(
+        """
+        SELECT
+            COALESCE(
+                SUM(weekly_hours),
+                0
+            )
+        FROM employee_departments
+        WHERE employee_id = ?
+        """,
+        (employee_id,),
+    )
+
+    current_hours = cursor.fetchone()[0]
+
+    connection.close()
+
+    return current_hours + float(weekly_hours) <= float(employee[0])
+
+
+def can_update_employee_department(
+    employee_id,
+    assignment_id,
+    weekly_hours,
+):
+    """Overí, či úprava priradenia neprekročí pracovný fond."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT weekly_hours
+        FROM employees
+        WHERE id = ?
+        """,
+        (employee_id,),
+    )
+
+    employee = cursor.fetchone()
+
+    if employee is None or employee[0] is None:
+        connection.close()
+        return False
+
+    cursor.execute(
+        """
+        SELECT
+            COALESCE(
+                SUM(weekly_hours),
+                0
+            )
+        FROM employee_departments
+        WHERE employee_id = ?
+          AND id != ?
+        """,
+        (
+            employee_id,
+            assignment_id,
+        ),
+    )
+
+    other_hours = cursor.fetchone()[0]
+
+    connection.close()
+
+    return other_hours + float(weekly_hours) <= float(employee[0])

@@ -76,24 +76,23 @@
 
         <div class="form-group">
 
-            <label for="employment_type">
-                Úväzok
+            <label for="weekly_hours">
+                Týždenný pracovný fond
             </label>
 
-            <select
-                id="employment_type"
-                name="employment_type"
+            <input
+                type="number"
+                id="weekly_hours"
+                name="weekly_hours"
+                min="0.5"
+                step="0.5"
+                placeholder="Napr. 40"
+                required
             >
 
-                <option value="full-time">
-                    Full-time
-                </option>
-
-                <option value="part-time">
-                    Part-time
-                </option>
-
-            </select>
+            <small>
+                Zadaj počet pracovných hodín za týždeň.
+            </small>
 
         </div>
 

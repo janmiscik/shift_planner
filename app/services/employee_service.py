@@ -7,7 +7,7 @@ def add_employee(
     first_name,
     last_name,
     position,
-    employment_type="full-time",
+    weekly_hours,
 ):
     """Pridá zamestnanca do databázy."""
 
@@ -20,15 +20,17 @@ def add_employee(
             first_name,
             last_name,
             position,
-            employment_type
+            employment_type,
+            weekly_hours
         )
-        VALUES (?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?)
         """,
         (
             first_name,
             last_name,
             position,
-            employment_type,
+            "custom",
+            weekly_hours,
         ),
     )
 
@@ -52,7 +54,7 @@ def get_employees():
             first_name,
             last_name,
             position,
-            employment_type,
+            weekly_hours,
             active
         FROM employees
         ORDER BY last_name, first_name
@@ -78,7 +80,7 @@ def get_employee(employee_id):
             first_name,
             last_name,
             position,
-            employment_type,
+            weekly_hours,
             active
         FROM employees
         WHERE id = ?
@@ -97,7 +99,7 @@ def update_employee(
     first_name,
     last_name,
     position,
-    employment_type,
+    weekly_hours,
 ):
     """Upraví údaje zamestnanca."""
 
@@ -111,14 +113,14 @@ def update_employee(
             first_name = ?,
             last_name = ?,
             position = ?,
-            employment_type = ?
+            weekly_hours = ?
         WHERE id = ?
         """,
         (
             first_name,
             last_name,
             position,
-            employment_type,
+            weekly_hours,
             employee_id,
         ),
     )
@@ -147,4 +149,3 @@ def set_employee_active(employee_id, active):
 
     connection.commit()
     connection.close()
-

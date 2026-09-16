@@ -36,6 +36,8 @@ from app.services.employee_department_service import (
     update_employee_department,
     delete_employee_department,
     get_employee_department_hours,
+    can_add_employee_department,
+    can_update_employee_department,
 )
 
 from app.services.shift_service import (
@@ -83,7 +85,7 @@ def add_employee_page():
             request.form["first_name"],
             request.form["last_name"],
             request.form["position"],
-            request.form["employment_type"],
+            request.form["weekly_hours"],
         )
 
         return redirect("/employees")
@@ -102,17 +104,44 @@ def edit_employee_page(employee_id):
         return "Zamestnanec neexistuje.", 404
 
     if request.method == "POST":
+        weekly_hours = float(
+            request.form["weekly_hours"]
+        )
+
+        total_weekly_hours = get_employee_department_hours(
+            employee_id
+        )
+
+        if weekly_hours < total_weekly_hours:
+            flash(
+                "Nový pracovný fond nemôže byť nižší ako počet hodín pridelených oddeleniam.",
+                "error",
+            )
+
+            assignments = get_employee_departments(
+                employee_id
+            )
+
+            return render_template(
+                "edit_employee.html",
+                employee=employee,
+                assignments=assignments,
+                total_weekly_hours=total_weekly_hours,
+            )
+
         update_employee(
             employee_id,
             request.form["first_name"],
             request.form["last_name"],
             request.form["position"],
-            request.form["employment_type"],
+            weekly_hours,
         )
 
         return redirect("/employees")
 
-    assignments = get_employee_departments(employee_id)
+    assignments = get_employee_departments(
+        employee_id
+    )
 
     total_weekly_hours = get_employee_department_hours(
         employee_id
@@ -140,6 +169,7 @@ def add_employee_department_page(employee_id):
 
     if request.method == "POST":
         department_id = request.form["department_id"]
+        weekly_hours = request.form["weekly_hours"]
 
         department = get_department(
             department_id
@@ -157,10 +187,25 @@ def add_employee_department_page(employee_id):
                 departments=departments,
             )
 
+        if not can_add_employee_department(
+            employee_id,
+            weekly_hours,
+        ):
+            flash(
+                "Priradenie prekračuje týždenný pracovný fond zamestnanca.",
+                "error",
+            )
+
+            return render_template(
+                "add_employee_department.html",
+                employee=employee,
+                departments=departments,
+            )
+
         assignment_id = add_employee_department(
             employee_id=employee_id,
             department_id=department_id,
-            weekly_hours=request.form["weekly_hours"],
+            weekly_hours=weekly_hours,
         )
 
         if assignment_id is None:
@@ -206,10 +251,47 @@ def edit_employee_department_page(
     departments = get_departments()
 
     if request.method == "POST":
+        department_id = request.form["department_id"]
+        weekly_hours = request.form["weekly_hours"]
+
+        department = get_department(
+            department_id
+        )
+
+        if department is None or not department[2]:
+            flash(
+                "Neaktívne oddelenie nie je možné priradiť zamestnancovi.",
+                "error",
+            )
+
+            return render_template(
+                "edit_employee_department.html",
+                employee=employee,
+                assignment=assignment,
+                departments=departments,
+            )
+
+        if not can_update_employee_department(
+            employee_id,
+            assignment_id,
+            weekly_hours,
+        ):
+            flash(
+                "Úprava prekračuje týždenný pracovný fond zamestnanca.",
+                "error",
+            )
+
+            return render_template(
+                "edit_employee_department.html",
+                employee=employee,
+                assignment=assignment,
+                departments=departments,
+            )
+
         update_employee_department(
             assignment_id=assignment_id,
-            department_id=request.form["department_id"],
-            weekly_hours=request.form["weekly_hours"],
+            department_id=department_id,
+            weekly_hours=weekly_hours,
         )
 
         return redirect(
