@@ -42,6 +42,7 @@ def create_tables():
             last_name TEXT NOT NULL,
             position TEXT NOT NULL,
             employment_type TEXT NOT NULL,
+            weekly_hours REAL,
             active INTEGER NOT NULL DEFAULT 1
         )
         """
