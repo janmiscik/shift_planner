@@ -9,12 +9,12 @@ class Employee:
         first_name,
         last_name,
         position,
-        employment_type="full-time",
+        weekly_hours,
     ):
         self.first_name = first_name
         self.last_name = last_name
         self.position = position
-        self.employment_type = employment_type
+        self.weekly_hours = weekly_hours
         self.active = True
 
     @property
