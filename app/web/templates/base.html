@@ -15,6 +15,8 @@
         {% endblock %}
     </title>
 
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
     <link
         rel="stylesheet"
         href="{{ url_for('static', filename='style.css') }}"

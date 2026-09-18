@@ -83,6 +83,27 @@ def get_employee_departments(employee_id):
     return assignments
 
 
+def get_employee_department_ids(employee_id):
+    """Vráti množinu ID oddelení, ku ktorým je zamestnanec priradený."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT department_id
+        FROM employee_departments
+        WHERE employee_id = ?
+        """,
+        (employee_id,),
+    )
+
+    department_ids = {row[0] for row in cursor.fetchall()}
+    connection.close()
+
+    return department_ids
+
+
 def get_employee_department(assignment_id):
     """Načíta jedno priradenie."""
 

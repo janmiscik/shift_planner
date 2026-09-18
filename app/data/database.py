@@ -19,75 +19,14 @@ def get_connection():
 
 
 def create_tables():
-    """Vytvorí potrebné tabuľky."""
+    """Vytvorí/aktualizuje schému databázy.
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    Deleguje na jednotný migračný runner (``app.data.migrations``),
+    ktorý aplikuje všetky doteraz nespustené migrácie. Import je
+    zámerne až vnútri funkcie, aby sa predišlo cyklickému importu
+    (migrations.py si z tohto modulu berie ``get_connection``).
+    """
 
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS departments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            active INTEGER NOT NULL DEFAULT 1
-        )
-        """
-    )
+    from app.data.migrations import run_migrations
 
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS employees (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            first_name TEXT NOT NULL,
-            last_name TEXT NOT NULL,
-            position TEXT NOT NULL,
-            employment_type TEXT NOT NULL,
-            weekly_hours REAL,
-            active INTEGER NOT NULL DEFAULT 1
-        )
-        """
-    )
-
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS employee_departments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            employee_id INTEGER NOT NULL,
-            department_id INTEGER NOT NULL,
-            weekly_hours REAL NOT NULL,
-            FOREIGN KEY (employee_id)
-                REFERENCES employees(id)
-                ON DELETE CASCADE,
-            FOREIGN KEY (department_id)
-                REFERENCES departments(id)
-                ON DELETE RESTRICT,
-            UNIQUE (
-                employee_id,
-                department_id
-            )
-        )
-        """
-    )
-
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS shifts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            employee_id INTEGER NOT NULL,
-            shift_date TEXT NOT NULL,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            shift_type TEXT NOT NULL,
-            department_id INTEGER,
-            FOREIGN KEY (employee_id)
-                REFERENCES employees(id)
-                ON DELETE CASCADE,
-            FOREIGN KEY (department_id)
-                REFERENCES departments(id)
-                ON DELETE RESTRICT
-        )
-        """
-    )
-
-    connection.commit()
-    connection.close()
+    run_migrations(verbose=False)

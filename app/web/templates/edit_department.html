@@ -23,6 +23,9 @@
 
     <form method="post">
 
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
         <div class="form-group">
 
             <label for="name">
@@ -33,9 +36,13 @@
                 type="text"
                 id="name"
                 name="name"
-                value="{{ department[1] }}"
+                value="{{ form.name.data if form.name.data is not none else department[1] }}"
                 required
             >
+
+            {% for error in form.name.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 

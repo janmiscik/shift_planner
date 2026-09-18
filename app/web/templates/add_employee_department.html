@@ -31,6 +31,9 @@
 
     <form method="post">
 
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
         <div class="form-group">
 
             <label for="department_id">
@@ -47,19 +50,24 @@
                     -- Vyber oddelenie --
                 </option>
 
-                {% for department in departments %}
+                {% for value, label in form.department_id.choices %}
 
-                    {% if department[2] %}
-
-                        <option value="{{ department[0] }}">
-                            {{ department[1] }}
-                        </option>
-
-                    {% endif %}
+                    <option
+                        value="{{ value }}"
+                        {% if form.department_id.data == value %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ label }}
+                    </option>
 
                 {% endfor %}
 
             </select>
+
+            {% for error in form.department_id.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -74,11 +82,16 @@
                 type="number"
                 id="weekly_hours"
                 name="weekly_hours"
+                value="{{ form.weekly_hours.data if form.weekly_hours.data is not none else '' }}"
                 min="0.5"
                 step="0.5"
                 placeholder="Napr. 25"
                 required
             >
+
+            {% for error in form.weekly_hours.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 

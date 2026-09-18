@@ -92,6 +92,9 @@
                                 onsubmit="return confirm('Naozaj chceš zmeniť stav tohto oddelenia?');"
                             >
 
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
                                 {% if department[2] %}
 
                                     <button

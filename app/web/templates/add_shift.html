@@ -23,6 +23,9 @@
 
     <form method="post">
 
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
         <div class="form-group">
 
             <label for="employee_id">
@@ -32,6 +35,7 @@
             <select
                 id="employee_id"
                 name="employee_id"
+                onchange="loadDepartments(this.value)"
                 required
             >
 
@@ -43,7 +47,12 @@
 
                     {% if employee[5] %}
 
-                        <option value="{{ employee[0] }}">
+                        <option
+                            value="{{ employee[0] }}"
+                            {% if form.employee_id.data == employee[0] %}
+                                selected
+                            {% endif %}
+                        >
                             {{ employee[1] }} {{ employee[2] }}
                             — {{ employee[3] }}
                         </option>
@@ -53,6 +62,39 @@
                 {% endfor %}
 
             </select>
+
+            {% for error in form.employee_id.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="department_id">
+                Oddelenie
+            </label>
+
+            <select
+                id="department_id"
+                name="department_id"
+            >
+
+                <option value="">
+                    -- Najprv vyber zamestnanca --
+                </option>
+
+            </select>
+
+            <small>
+                Zoznam sa obmedzí na oddelenia, ku ktorým je
+                zamestnanec priradený.
+            </small>
+
+            {% for error in form.department_id.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -67,9 +109,13 @@
                 type="date"
                 id="shift_date"
                 name="shift_date"
-                value="{{ selected_date }}"
+                value="{{ form.shift_date.data.isoformat() if form.shift_date.data else selected_date }}"
                 required
             >
+
+            {% for error in form.shift_date.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -84,8 +130,13 @@
                 type="time"
                 id="start_time"
                 name="start_time"
+                value="{{ form.start_time.data.strftime('%H:%M') if form.start_time.data else '' }}"
                 required
             >
+
+            {% for error in form.start_time.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -100,8 +151,18 @@
                 type="time"
                 id="end_time"
                 name="end_time"
+                value="{{ form.end_time.data.strftime('%H:%M') if form.end_time.data else '' }}"
                 required
             >
+
+            <small>
+                Ak je koniec skorší ako začiatok, smena sa počíta ako
+                nočná - prechádzajúca do nasledujúceho dňa.
+            </small>
+
+            {% for error in form.end_time.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -122,23 +183,24 @@
                     -- Vyber typ smeny --
                 </option>
 
-                <option value="Ranná">
-                    Ranná
-                </option>
+                {% for value, label in form.shift_type.choices %}
 
-                <option value="Medzismena">
-                    Medzismena
-                </option>
+                    <option
+                        value="{{ value }}"
+                        {% if form.shift_type.data == value %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ label }}
+                    </option>
 
-                <option value="Poobedná">
-                    Poobedná
-                </option>
-
-                <option value="Nočná">
-                    Nočná
-                </option>
+                {% endfor %}
 
             </select>
+
+            {% for error in form.shift_type.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -173,5 +235,52 @@
     </a>
 
 </div>
+
+<script>
+async function loadDepartments(employeeId, selectedDepartmentId) {
+    const select = document.getElementById("department_id");
+    select.innerHTML = "";
+
+    if (!employeeId) {
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "-- Najprv vyber zamestnanca --";
+        select.appendChild(placeholder);
+        return;
+    }
+
+    const noneOption = document.createElement("option");
+    noneOption.value = "";
+    noneOption.textContent = "-- Bez oddelenia --";
+    select.appendChild(noneOption);
+
+    try {
+        const response = await fetch(`/api/employees/${employeeId}/departments`);
+        const departments = await response.json();
+
+        departments.forEach((department) => {
+            const option = document.createElement("option");
+            option.value = department.id;
+            option.textContent = department.name;
+
+            if (selectedDepartmentId && String(department.id) === String(selectedDepartmentId)) {
+                option.selected = true;
+            }
+
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error("Nepodarilo sa načítať oddelenia zamestnanca.", error);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const employeeSelect = document.getElementById("employee_id");
+
+    if (employeeSelect.value) {
+        loadDepartments(employeeSelect.value, "{{ form.department_id.data or '' }}");
+    }
+});
+</script>
 
 {% endblock %}

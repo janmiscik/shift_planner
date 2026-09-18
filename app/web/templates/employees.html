@@ -99,6 +99,9 @@
                                 onsubmit="return confirm('Naozaj chceš zmeniť stav tohto zamestnanca?');"
                             >
 
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
                                 {% if employee[5] %}
 
                                     <button

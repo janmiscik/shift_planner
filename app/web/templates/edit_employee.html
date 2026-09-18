@@ -25,6 +25,9 @@
 
     <form method="post">
 
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
         <div class="form-group">
 
             <label for="first_name">
@@ -35,9 +38,13 @@
                 type="text"
                 id="first_name"
                 name="first_name"
-                value="{{ employee[1] }}"
+                value="{{ form.first_name.data if form.first_name.data is not none else employee[1] }}"
                 required
             >
+
+            {% for error in form.first_name.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -52,9 +59,13 @@
                 type="text"
                 id="last_name"
                 name="last_name"
-                value="{{ employee[2] }}"
+                value="{{ form.last_name.data if form.last_name.data is not none else employee[2] }}"
                 required
             >
+
+            {% for error in form.last_name.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -69,9 +80,13 @@
                 type="text"
                 id="position"
                 name="position"
-                value="{{ employee[3] }}"
+                value="{{ form.position.data if form.position.data is not none else employee[3] }}"
                 required
             >
+
+            {% for error in form.position.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -86,7 +101,7 @@
                 type="number"
                 id="weekly_hours"
                 name="weekly_hours"
-                value="{{ employee[4] if employee[4] is not none else '' }}"
+                value="{{ form.weekly_hours.data if form.weekly_hours.data is not none else (employee[4] if employee[4] is not none else '') }}"
                 min="0.5"
                 step="0.5"
                 placeholder="Napr. 37.5"
@@ -96,6 +111,10 @@
             <small>
                 Zadaj počet pracovných hodín za týždeň.
             </small>
+
+            {% for error in form.weekly_hours.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 
@@ -186,6 +205,9 @@
                                 action="/employees/{{ employee[0] }}/departments/delete/{{ assignment[0] }}"
                                 onsubmit="return confirm('Naozaj chceš odstrániť toto priradenie?');"
                             >
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
 
                                 <button
                                     type="submit"

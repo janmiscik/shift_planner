@@ -23,6 +23,9 @@
 
     <form method="post">
 
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
         <div class="form-group">
 
             <label for="name">
@@ -33,9 +36,14 @@
                 type="text"
                 id="name"
                 name="name"
+                value="{{ form.name.data or '' }}"
                 placeholder="Napr. Výroba"
                 required
             >
+
+            {% for error in form.name.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
 
         </div>
 

@@ -16,9 +16,21 @@
         </p>
     </div>
 
-    <a class="btn" href="/shifts/add">
-        + Pridať smenu
-    </a>
+    <div class="actions">
+
+        <a class="btn btn-secondary" href="/shifts/export.xlsx">
+            ⬇ Export .xlsx
+        </a>
+
+        <a class="btn btn-secondary" href="/shifts/export.pdf">
+            ⬇ Export .pdf
+        </a>
+
+        <a class="btn" href="/shifts/add">
+            + Pridať smenu
+        </a>
+
+    </div>
 
 </div>
 
@@ -114,6 +126,9 @@
                                 action="/shifts/delete/{{ shift[0] }}"
                                 onsubmit="return confirm('Naozaj chceš túto smenu zmazať?');"
                             >
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
 
                                 <button
                                     type="submit"

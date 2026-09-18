@@ -12,16 +12,35 @@
         <h1>Kalendár</h1>
 
         <p>
-            Prehľad naplánovaných smien podľa dní
+            Prehľad naplánovaných smien podľa dní. Smenu presunieš
+            jednoduchým pretiahnutím (drag-and-drop).
         </p>
     </div>
 
-    <a
-        class="btn"
-        href="/shifts/add"
-    >
-        + Pridať smenu
-    </a>
+    <div class="actions">
+
+        <a
+            class="btn btn-secondary"
+            href="/calendar/export.xlsx?year={{ year }}&month={{ month }}"
+        >
+            ⬇ Export .xlsx
+        </a>
+
+        <a
+            class="btn btn-secondary"
+            href="/calendar/export.pdf?year={{ year }}&month={{ month }}"
+        >
+            ⬇ Export .pdf
+        </a>
+
+        <a
+            class="btn"
+            href="/shifts/add"
+        >
+            + Pridať smenu
+        </a>
+
+    </div>
 
 </div>
 
@@ -79,171 +98,114 @@
 </div>
 
 
-<div class="calendar-header">
-
-    <a
-        class="btn btn-secondary"
-        href="/calendar?year={{ year if month > 1 else year - 1 }}&month={{ month - 1 if month > 1 else 12 }}{% if selected_employee_id %}&employee_id={{ selected_employee_id }}{% endif %}"
-    >
-        ←
-    </a>
-
-
-    <h2>
-        {{ month }} / {{ year }}
-    </h2>
-
-
-    <a
-        class="btn btn-secondary"
-        href="/calendar?year={{ year if month < 12 else year + 1 }}&month={{ month + 1 if month < 12 else 1 }}{% if selected_employee_id %}&employee_id={{ selected_employee_id }}{% endif %}"
-    >
-        →
-    </a>
-
-</div>
-
-
-<div class="calendar">
-
-    <div class="calendar-day-name">
-        Po
-    </div>
-
-    <div class="calendar-day-name">
-        Ut
-    </div>
-
-    <div class="calendar-day-name">
-        St
-    </div>
-
-    <div class="calendar-day-name">
-        Št
-    </div>
-
-    <div class="calendar-day-name">
-        Pi
-    </div>
-
-    <div class="calendar-day-name">
-        So
-    </div>
-
-    <div class="calendar-day-name">
-        Ne
-    </div>
-
-
-    {% for day in calendar_days %}
-
-        {% if day %}
-
-            <a
-                class="calendar-day calendar-day-link"
-                href="/shifts/add?date={{ '%04d-%02d-%02d'|format(year, month, day) }}"
-            >
-
-                <div class="day-number">
-                    {{ day }}
-                </div>
-
-
-                {% for shift in shifts %}
-
-                    {% if shift[3] == "%04d-%02d-%02d"|format(year, month, day) %}
-
-
-                        {% if shift[6] == "Ranná" %}
-
-                            <div class="calendar-shift shift-morning">
-
-                        {% elif shift[6] == "Medzismena" %}
-
-                            <div class="calendar-shift shift-mid">
-
-                        {% elif shift[6] == "Poobedná" %}
-
-                            <div class="calendar-shift shift-afternoon">
-
-                        {% elif shift[6] == "Nočná" %}
-
-                            <div class="calendar-shift shift-night">
-
-                        {% else %}
-
-                            <div class="calendar-shift">
-
-                        {% endif %}
-
-                                <strong>
-                                    {{ shift[1] }} {{ shift[2] }}
-                                </strong>
-
-                                <span>
-                                    {{ shift[4] }} – {{ shift[5] }}
-                                </span>
-
-                                <small>
-                                    {{ shift[6] }}
-                                </small>
-
-                            </div>
-
-                    {% endif %}
-
-                {% endfor %}
-
-            </a>
-
-        {% else %}
-
-            <div class="calendar-day empty-day"></div>
-
-        {% endif %}
-
-    {% endfor %}
-
+<div class="card">
+    <div id="shift-calendar"></div>
 </div>
 
 
 <div class="shift-legend">
 
     <div class="legend-item">
-
         <span class="legend-color legend-morning"></span>
-
         Ranná
-
     </div>
 
-
     <div class="legend-item">
-
         <span class="legend-color legend-mid"></span>
-
         Medzismena
-
     </div>
 
-
     <div class="legend-item">
-
         <span class="legend-color legend-afternoon"></span>
-
         Poobedná
-
     </div>
 
-
     <div class="legend-item">
-
         <span class="legend-color legend-night"></span>
-
         Nočná
-
     </div>
 
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/index.global.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const calendarEl = document.getElementById("shift-calendar");
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const selectedEmployeeId = "{{ selected_employee_id or '' }}";
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: "dayGridMonth",
+        initialDate: "{{ '%04d-%02d-01'|format(year, month) }}",
+        locale: "sk",
+        firstDay: 1,
+        height: "auto",
+        editable: true,
+        eventStartEditable: true,
+        headerToolbar: {
+            left: "prev,next today",
+            center: "title",
+            right: "",
+        },
+        dateClick: function (info) {
+            window.location.href = "/shifts/add?date=" + info.dateStr;
+        },
+        eventClick: function (info) {
+            window.location.href = "/shifts/edit/" + info.event.id;
+        },
+        events: function (fetchInfo, successCallback, failureCallback) {
+            const params = new URLSearchParams({
+                start: fetchInfo.startStr.slice(0, 10),
+                end: fetchInfo.endStr.slice(0, 10),
+            });
+
+            if (selectedEmployeeId) {
+                params.set("employee_id", selectedEmployeeId);
+            }
+
+            fetch("/api/shifts?" + params.toString())
+                .then((response) => response.json())
+                .then((events) => successCallback(events))
+                .catch((error) => failureCallback(error));
+        },
+        eventDrop: function (info) {
+            const start = info.event.start;
+            const end = info.event.end || start;
+
+            const pad = (n) => String(n).padStart(2, "0");
+            const shiftDate = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+            const startTime = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
+            const endTime = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+
+            fetch(`/api/shifts/${info.event.id}/move`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken,
+                },
+                body: JSON.stringify({
+                    shift_date: shiftDate,
+                    start_time: startTime,
+                    end_time: endTime,
+                }),
+            })
+                .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.error || "Presun sa nepodarilo uložiť.");
+                        info.revert();
+                    }
+                })
+                .catch(() => {
+                    alert("Presun sa nepodarilo uložiť.");
+                    info.revert();
+                });
+        },
+    });
+
+    calendar.render();
+});
+</script>
 
 {% endblock %}
