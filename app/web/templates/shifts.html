@@ -49,6 +49,7 @@
                     <th>Začiatok</th>
                     <th>Koniec</th>
                     <th>Typ smeny</th>
+                    <th>Vytvorené</th>
                     <th>Akcie</th>
                 </tr>
 
@@ -110,6 +111,10 @@
 
                             {% endif %}
 
+                        </td>
+
+                        <td class="created-at">
+                            {{ shift[10] or "neznámy" }}
                         </td>
 
                         <td class="actions">

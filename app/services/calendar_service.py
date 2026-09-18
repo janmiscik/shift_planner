@@ -70,6 +70,7 @@ def shifts_to_fullcalendar_events(shifts):
             employee_id,
             department_id,
             department_name,
+            created_at,
         ) = shift
 
         # Nočná smena (koniec <= začiatok) v skutočnosti končí až

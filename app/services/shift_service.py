@@ -356,9 +356,10 @@ def add_shift(
             start_time,
             end_time,
             shift_type,
-            department_id
+            department_id,
+            created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
         """,
         (
             employee_id,
@@ -389,7 +390,8 @@ def _shift_select(where_clause="", order_clause=""):
             shifts.shift_type,
             shifts.employee_id,
             shifts.department_id,
-            departments.name
+            departments.name,
+            shifts.created_at
         FROM shifts
         JOIN employees
             ON shifts.employee_id = employees.id

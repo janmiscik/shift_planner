@@ -68,6 +68,7 @@ def build_shifts_workbook(shifts, title="Smeny"):
             employee_id,
             department_id,
             department_name,
+            created_at,
         ) = shift
 
         sheet.cell(row=row_index, column=1, value=shift_id)
@@ -181,6 +182,7 @@ def build_shifts_pdf(shifts, title="Harmonogram smien"):
             employee_id,
             department_id,
             department_name,
+            created_at,
         ) = shift
 
         table_data.append(

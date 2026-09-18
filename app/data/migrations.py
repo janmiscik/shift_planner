@@ -158,12 +158,33 @@ def _migration_005_employee_weekly_hours(cursor):
         )
 
 
+def _migration_006_shift_created_at(cursor):
+    """Pridá časovú značku vytvorenia smeny (pre budúcu dohľadateľnosť
+    - kedy a odkiaľ záznam vznikol)."""
+
+    if not _column_exists(cursor, "shifts", "created_at"):
+        cursor.execute(
+            "ALTER TABLE shifts ADD COLUMN created_at TEXT"
+        )
+
+        # Existujúce riadky nemajú známy čas vzniku - označíme ich
+        # explicitne, aby sa nedali zamieňať s novými.
+        cursor.execute(
+            """
+            UPDATE shifts
+            SET created_at = 'neznámy (pred zavedením sledovania)'
+            WHERE created_at IS NULL
+            """
+        )
+
+
 MIGRATIONS = [
     ("001_initial_schema", _migration_001_initial_schema),
     ("002_departments", _migration_002_departments),
     ("003_employee_departments", _migration_003_employee_departments),
     ("004_weekly_hours", _migration_004_weekly_hours),
     ("005_employee_weekly_hours", _migration_005_employee_weekly_hours),
+    ("006_shift_created_at", _migration_006_shift_created_at),
 ]
 
 
