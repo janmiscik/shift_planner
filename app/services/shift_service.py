@@ -282,6 +282,59 @@ def remove_duplicate_shifts():
     return duplicate_ids
 
 
+def find_overlapping_shifts():
+    """Nájde smeny, ktoré sa prekrývajú (rovnaký zamestnanec, prekryv
+    časov), aj keď nie sú úplne identické - napr. staré/testovacie
+    dáta vložené mimo webového formulára (ktorý prekrytie nedovolí).
+
+    Nič nemaže - len vráti konfliktné dvojice, aby si sa vedel
+    rozhodnúť, ktorú smenu ponechať (zmazať vieš cez /shifts v appke).
+    """
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            shifts.id,
+            employees.first_name,
+            employees.last_name,
+            shifts.employee_id,
+            shifts.shift_date,
+            shifts.start_time,
+            shifts.end_time
+        FROM shifts
+        JOIN employees ON shifts.employee_id = employees.id
+        ORDER BY shifts.employee_id, shifts.shift_date, shifts.start_time
+        """
+    )
+
+    rows = cursor.fetchall()
+    connection.close()
+
+    conflicts = []
+
+    for i, row in enumerate(rows):
+        row_start, row_end = _shift_datetime_range(
+            row[4], row[5], row[6]
+        )
+
+        for other in rows[i + 1:]:
+            if row[3] != other[3]:
+                # Iný zamestnanec - prekrytie nás nezaujíma.
+                continue
+
+            other_start, other_end = _shift_datetime_range(
+                other[4], other[5], other[6]
+            )
+
+            if row_start < other_end and row_end > other_start:
+                conflicts.append((row, other))
+
+    return conflicts
+
+
 def add_shift(
     employee_id,
     shift_date,
