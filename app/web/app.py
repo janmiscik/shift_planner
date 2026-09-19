@@ -9,10 +9,13 @@ exporty) žijú v ``app/services``.
 import os
 from datetime import date
 
+from dotenv import load_dotenv
 from flask import Flask, flash, jsonify, redirect, render_template, request, send_file
 from flask_wtf import CSRFProtect
 
 from app.data.database import create_tables
+
+load_dotenv()
 
 from app.services.employee_service import (
     add_employee,

@@ -53,11 +53,13 @@ Aplikácia beží na `http://127.0.0.1:5000`.
 Appka beží aj bez nastavenej premennej `SECRET_KEY` (na vývoj), ale
 vypíše varovanie a použije predvolený, verejne známy kľúč - to nie je
 bezpečné pre nasadenie mimo tvojho počítača. Pred produkčným nasadením
-si vygeneruj vlastný a nastav ho ako premennú prostredia:
+si vygeneruj vlastný a ulož ho do súboru `.env` (skopíruj z
+`.env.example`, súbor `.env` sa necommituje do gitu):
 
 ```powershell
 python -c "import secrets; print(secrets.token_hex(32))"
-$env:SECRET_KEY = "sem-vlozit-vygenerovany-retazec"
+copy .env.example .env
+# do .env vlož vygenerovaný reťazec ako SECRET_KEY=...
 python manage.py runserver
 ```
 
