@@ -54,9 +54,25 @@ def shift_css_class(shift_type):
 
 
 def shifts_to_fullcalendar_events(shifts):
-    """Prevedie riadky smien na udalosti pre FullCalendar (JS knižnicu)."""
+    """Prevedie riadky smien na udalosti pre FullCalendar (JS knižnicu).
+
+    Ku každej udalosti pridá aj stav týždenného fondu hodín
+    zamestnanca (``weeklyHours`` v ``extendedProps``) a CSS triedu
+    navyše (``hours-near`` / ``hours-over``), aby sa v kalendári dalo
+    vizuálne rozoznať, kto sa blíži alebo už prekročil svoj limit.
+    """
+
+    from app.services.shift_service import (
+        get_employee_weekly_hours_status,
+        week_bounds,
+    )
 
     events = []
+
+    # Cache podľa (employee_id, pondelok_tyzdna), aby sa pri viacerých
+    # smenách toho istého zamestnanca v tom istom týždni fond hodín
+    # nepočítal opakovane.
+    hours_status_cache = {}
 
     for shift in shifts:
         (
@@ -83,6 +99,21 @@ def shifts_to_fullcalendar_events(shifts):
                 date.fromisoformat(shift_date) + timedelta(days=1)
             ).isoformat()
 
+        monday, _ = week_bounds(shift_date)
+        cache_key = (employee_id, monday)
+
+        if cache_key not in hours_status_cache:
+            hours_status_cache[cache_key] = get_employee_weekly_hours_status(
+                employee_id, shift_date
+            )
+
+        hours_status = hours_status_cache[cache_key]
+
+        css_classes = [shift_css_class(shift_type)]
+
+        if hours_status is not None and hours_status["status"] != "ok":
+            css_classes.append(f"hours-{hours_status['status']}")
+
         events.append(
             {
                 "id": shift_id,
@@ -96,8 +127,9 @@ def shifts_to_fullcalendar_events(shifts):
                     "departmentId": department_id,
                     "departmentName": department_name,
                     "overnight": end_time <= start_time,
+                    "weeklyHours": hours_status,
                 },
-                "className": shift_css_class(shift_type),
+                "className": " ".join(css_classes),
             }
         )
 

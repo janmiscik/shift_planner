@@ -14,7 +14,9 @@ Webová aplikácia (Flask) na plánovanie pracovných zmien zamestnancov.
     aktívnu väzbu,
 - interaktívny kalendár (FullCalendar) s presúvaním smien
   metódou drag-and-drop,
-- export harmonogramu do Excelu (.xlsx) aj do PDF,
+- export harmonogramu do Excelu (.xlsx), PDF a iCalendar (.ics -
+  zamestnanec si svoje smeny vie naimportovať do Google Kalendára
+  alebo Outlooku cez `/employees/<id>/export.ics`),
 - CSRF ochrana a backendová validácia formulárov (Flask-WTF).
 
 ## Inštalácia
@@ -46,6 +48,19 @@ python manage.py runserver
 
 Aplikácia beží na `http://127.0.0.1:5000`.
 
+### SECRET_KEY (produkcia)
+
+Appka beží aj bez nastavenej premennej `SECRET_KEY` (na vývoj), ale
+vypíše varovanie a použije predvolený, verejne známy kľúč - to nie je
+bezpečné pre nasadenie mimo tvojho počítača. Pred produkčným nasadením
+si vygeneruj vlastný a nastav ho ako premennú prostredia:
+
+```powershell
+python -c "import secrets; print(secrets.token_hex(32))"
+$env:SECRET_KEY = "sem-vlozit-vygenerovany-retazec"
+python manage.py runserver
+```
+
 ## Testy
 
 ```powershell
@@ -72,3 +87,19 @@ jeden runner (`app/data/migrations.py`). Každá migrácia sa eviduje
 v tabuľke `schema_migrations` a spustí sa len raz - `python manage.py
 migrate` je preto bezpečné spúšťať opakovane, aj na už existujúcej
 databáze.
+
+## Filter podľa oddelenia v kalendári
+
+Filter zohľadní aj smeny, ktoré nemajú oddelenie nastavené priamo
+(pole je pri pridávaní smeny nepovinné) - v takom prípade sa pozrie,
+či je zamestnanec k danému oddeleniu priradený. Ak máš staršie smeny
+bez oddelenia a chceš im ho doplniť natrvalo (nie len pri filtrovaní),
+spusti jednorazovo:
+
+```powershell
+python manage.py backfill-departments
+```
+
+Doplní oddelenie len tam, kde je to jednoznačné (zamestnanec je
+priradený presne k jednému oddeleniu). Zvyšok treba doplniť ručne cez
+úpravu smeny v appke.

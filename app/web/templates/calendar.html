@@ -34,6 +34,13 @@
         </a>
 
         <a
+            class="btn btn-secondary"
+            href="/calendar/export.ics?year={{ year }}&month={{ month }}"
+        >
+            ⬇ Export .ics
+        </a>
+
+        <a
             class="btn"
             href="/shifts/add"
         >
@@ -93,6 +100,35 @@
 
         </select>
 
+        <label for="department_id">
+            Oddelenie
+        </label>
+
+        <select
+            id="department_id"
+            name="department_id"
+            onchange="this.form.submit()"
+        >
+
+            <option value="">
+                Všetky oddelenia
+            </option>
+
+            {% for department in departments %}
+
+                <option
+                    value="{{ department[0] }}"
+                    {% if selected_department_id == department[0] %}
+                        selected
+                    {% endif %}
+                >
+                    {{ department[1] }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
     </form>
 
 </div>
@@ -125,6 +161,16 @@
         Nočná
     </div>
 
+    <div class="legend-item">
+        <span class="legend-color legend-hours-near"></span>
+        Blíži sa k limitu hodín (80 - 100 %)
+    </div>
+
+    <div class="legend-item">
+        <span class="legend-color legend-hours-over"></span>
+        Prekročený limit hodín
+    </div>
+
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/index.global.min.js"></script>
@@ -134,6 +180,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const calendarEl = document.getElementById("shift-calendar");
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const selectedEmployeeId = "{{ selected_employee_id or '' }}";
+    const selectedDepartmentId = "{{ selected_department_id or '' }}";
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: "dayGridMonth",
@@ -154,6 +201,24 @@ document.addEventListener("DOMContentLoaded", function () {
         eventClick: function (info) {
             window.location.href = "/shifts/edit/" + info.event.id;
         },
+        eventDidMount: function (info) {
+            const weeklyHours = info.event.extendedProps.weeklyHours;
+
+            if (!weeklyHours) {
+                return;
+            }
+
+            let tooltip = `${info.event.extendedProps.employeeName}: `
+                + `${weeklyHours.used} / ${weeklyHours.limit} h tento týždeň`;
+
+            if (weeklyHours.status === "over") {
+                tooltip += ` - PREKROČENÝ LIMIT (${weeklyHours.percent} %)`;
+            } else if (weeklyHours.status === "near") {
+                tooltip += ` - blíži sa k limitu (${weeklyHours.percent} %)`;
+            }
+
+            info.el.setAttribute("title", tooltip);
+        },
         events: function (fetchInfo, successCallback, failureCallback) {
             const params = new URLSearchParams({
                 start: fetchInfo.startStr.slice(0, 10),
@@ -162,6 +227,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (selectedEmployeeId) {
                 params.set("employee_id", selectedEmployeeId);
+            }
+
+            if (selectedDepartmentId) {
+                params.set("department_id", selectedDepartmentId);
             }
 
             fetch("/api/shifts?" + params.toString())

@@ -6,6 +6,7 @@ a výpočty (kolízie smien, týždenné fondy, kalendárna mriežka,
 exporty) žijú v ``app/services``.
 """
 
+import os
 from datetime import date
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, send_file
@@ -44,6 +45,7 @@ from app.services.employee_department_service import (
 from app.services.shift_service import (
     add_shift,
     delete_shift,
+    filter_shifts_by_department,
     get_shift,
     get_shifts,
     get_shifts_by_employee,
@@ -59,7 +61,11 @@ from app.services.calendar_service import (
     shifts_to_fullcalendar_events,
 )
 
-from app.services.export_service import build_shifts_pdf, build_shifts_workbook
+from app.services.export_service import (
+    build_shifts_ics,
+    build_shifts_pdf,
+    build_shifts_workbook,
+)
 
 from app.web.forms import (
     DepartmentForm,
@@ -71,7 +77,17 @@ from app.web.forms import (
 
 app = Flask(__name__)
 
-app.secret_key = "shift-planner-secret-key"
+_DEFAULT_SECRET_KEY = "dev-docasny-kluc-zmen-v-produkcii"
+
+app.secret_key = os.environ.get("SECRET_KEY", _DEFAULT_SECRET_KEY)
+
+if app.secret_key == _DEFAULT_SECRET_KEY:
+    print(
+        "UPOZORNENIE: beží sa s predvoleným (nebezpečným) SECRET_KEY. "
+        "Pred nasadením do produkcie nastav premennú prostredia "
+        "SECRET_KEY na náhodný, tajný reťazec - napr.:\n"
+        "  python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
 
 csrf = CSRFProtect(app)
 
@@ -351,6 +367,26 @@ def delete_employee_department_page(employee_id, assignment_id):
     return redirect(f"/employees/edit/{employee_id}")
 
 
+@app.route("/employees/<int:employee_id>/export.ics")
+def export_employee_shifts_ics(employee_id):
+    employee = get_employee(employee_id)
+
+    if employee is None:
+        return "Zamestnanec neexistuje.", 404
+
+    shifts = get_shifts_by_employee(employee_id)
+    calendar_name = f"Moje smeny - {employee[1]} {employee[2]}"
+
+    ics = build_shifts_ics(shifts, calendar_name=calendar_name)
+
+    return send_file(
+        ics,
+        as_attachment=True,
+        download_name=f"moje_smeny_{employee[1]}_{employee[2]}.ics",
+        mimetype="text/calendar",
+    )
+
+
 @app.route("/employees/toggle/<int:employee_id>", methods=["POST"])
 def toggle_employee_page(employee_id):
     employee = get_employee(employee_id)
@@ -474,6 +510,19 @@ def export_shifts_pdf():
         as_attachment=True,
         download_name="smeny.pdf",
         mimetype="application/pdf",
+    )
+
+
+@app.route("/shifts/export.ics")
+def export_shifts_ics():
+    shifts = get_shifts()
+    ics = build_shifts_ics(shifts, calendar_name="Shift Planner - všetky smeny")
+
+    return send_file(
+        ics,
+        as_attachment=True,
+        download_name="smeny.ics",
+        mimetype="text/calendar",
     )
 
 
@@ -649,13 +698,10 @@ def calendar_page():
     year = request.args.get("year", today.year, type=int)
     month = request.args.get("month", today.month, type=int)
     employee_id = request.args.get("employee_id", type=int)
+    department_id = request.args.get("department_id", type=int)
 
     employees = get_employees()
-
-    if employee_id:
-        shifts = get_shifts_by_employee(employee_id)
-    else:
-        shifts = get_shifts()
+    departments = get_departments()
 
     calendar_days = build_calendar_days(year, month)
 
@@ -664,9 +710,10 @@ def calendar_page():
         year=year,
         month=month,
         calendar_days=calendar_days,
-        shifts=shifts,
         employees=employees,
+        departments=departments,
         selected_employee_id=employee_id,
+        selected_department_id=department_id,
     )
 
 
@@ -719,6 +766,29 @@ def export_calendar_pdf():
     )
 
 
+@app.route("/calendar/export.ics")
+def export_calendar_ics():
+    today = date.today()
+
+    year = request.args.get("year", today.year, type=int)
+    month = request.args.get("month", today.month, type=int)
+
+    first_day, last_day = month_bounds(year, month)
+    shifts = get_shifts_in_range(first_day, last_day)
+
+    ics = build_shifts_ics(
+        shifts,
+        calendar_name=f"Shift Planner - {month:02d}/{year}",
+    )
+
+    return send_file(
+        ics,
+        as_attachment=True,
+        download_name=f"smeny_{year}_{month:02d}.ics",
+        mimetype="text/calendar",
+    )
+
+
 # ---------------------------------------------------------------------
 # JSON API (AJAX pre formuláre a FullCalendar drag-and-drop)
 # ---------------------------------------------------------------------
@@ -751,6 +821,7 @@ def api_shifts():
     start = request.args.get("start")
     end = request.args.get("end")
     employee_id = request.args.get("employee_id", type=int)
+    department_id = request.args.get("department_id", type=int)
 
     if start and end:
         # FullCalendar posiela "end" ako exkluzívny (deň po poslednom
@@ -768,6 +839,9 @@ def api_shifts():
         shifts = [
             shift for shift in shifts if shift[7] == employee_id
         ]
+
+    if department_id:
+        shifts = filter_shifts_by_department(shifts, department_id)
 
     return jsonify(shifts_to_fullcalendar_events(shifts))
 

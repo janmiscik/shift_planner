@@ -1,12 +1,15 @@
 """Správcovské príkazy pre Shift Planner.
 
 Použitie:
-    python manage.py migrate             # aplikuje databázové migrácie
-    python manage.py runserver           # spustí vývojový webový server
-    python manage.py cleanup-duplicates  # zmaže PRESNE identické duplicity
-    python manage.py find-overlaps       # nájde prekrývajúce sa smeny
-                                          # (aj keď nie sú identické) -
-                                          # nič nemaže, len vypíše
+    python manage.py migrate               # aplikuje databázové migrácie
+    python manage.py runserver             # spustí vývojový webový server
+    python manage.py cleanup-duplicates    # zmaže PRESNE identické duplicity
+    python manage.py find-overlaps         # nájde prekrývajúce sa smeny
+                                            # (aj keď nie sú identické) -
+                                            # nič nemaže, len vypíše
+    python manage.py backfill-departments  # doplní oddelenie do starších
+                                            # smien, kde chýba a je to
+                                            # jednoznačné
 """
 
 import sys
@@ -64,6 +67,21 @@ def main():
                     "  -> obe naraz nemôžu byť správne, jednu z nich "
                     "zmaž na stránke /shifts v appke.\n"
                 )
+
+    elif command == "backfill-departments":
+        from app.services.shift_service import backfill_shift_departments
+
+        updated, skipped = backfill_shift_departments()
+
+        print(f"Doplnené oddelenie do {updated} starších smien.")
+
+        if skipped:
+            print(
+                f"Preskočených {skipped} smien - zamestnanec má "
+                "priradené 0 alebo viac ako 1 oddelenie, takže sa "
+                "nedalo jednoznačne uhádnuť ktoré. Doplň to ručne "
+                "cez úpravu smeny v appke."
+            )
 
     else:
         print(f"Neznámy príkaz: {command}")

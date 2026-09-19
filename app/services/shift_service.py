@@ -164,6 +164,45 @@ def get_scheduled_hours_in_week(
     )
 
 
+def get_employee_weekly_hours_status(employee_id, shift_date):
+    """Vráti stav týždenného fondu hodín zamestnanca pre týždeň,
+    v ktorom leží ``shift_date``.
+
+    Vráti ``None``, ak zamestnanec nemá nastavený týždenný fond
+    hodín (``employees.weekly_hours`` je prázdne). Inak vráti
+    slovník s hodinami odpracovanými/naplánovanými v danom týždni,
+    fondom a stavom:
+      - "ok"   - do 80 % fondu,
+      - "near" - 80 - 100 % fondu (blíži sa k limitu),
+      - "over" - nad 100 % fondu (limit je prekročený).
+    """
+
+    from app.services.employee_service import get_employee
+
+    employee = get_employee(employee_id)
+
+    if employee is None or employee[4] is None:
+        return None
+
+    limit = float(employee[4])
+    used = get_scheduled_hours_in_week(employee_id, shift_date)
+    percent = (used / limit * 100) if limit else 0
+
+    if percent > 100:
+        status = "over"
+    elif percent >= 80:
+        status = "near"
+    else:
+        status = "ok"
+
+    return {
+        "used": round(used, 1),
+        "limit": round(limit, 1),
+        "percent": round(percent, 1),
+        "status": status,
+    }
+
+
 def validate_shift(
     employee_id,
     shift_date,
@@ -541,6 +580,98 @@ def delete_shift(shift_id):
 
     connection.commit()
     connection.close()
+
+
+def filter_shifts_by_department(shifts, department_id):
+    """Vyfiltruje smeny patriace k danému oddeleniu.
+
+    Zohľadní dva prípady:
+      1. smena má oddelenie nastavené priamo (``shifts.department_id``),
+      2. smena oddelenie nastavené nemá (staršie dáta, alebo sa pri
+         pridávaní nevyplnilo - je to nepovinné pole), ale zamestnanec
+         je k danému oddeleniu priradený cez ``employee_departments``.
+    """
+
+    from app.services.employee_department_service import (
+        get_employee_department_ids,
+    )
+
+    department_ids_cache = {}
+    filtered = []
+
+    for shift in shifts:
+        shift_department_id = shift[8]
+        employee_id = shift[7]
+
+        if shift_department_id == department_id:
+            filtered.append(shift)
+            continue
+
+        if shift_department_id is not None:
+            # Smena má explicitne INÉ oddelenie - nepatrí sem.
+            continue
+
+        if employee_id not in department_ids_cache:
+            department_ids_cache[employee_id] = get_employee_department_ids(
+                employee_id
+            )
+
+        if department_id in department_ids_cache[employee_id]:
+            filtered.append(shift)
+
+    return filtered
+
+
+def backfill_shift_departments():
+    """Jednorazovo doplní ``department_id`` do starších smien, kde
+    chýba, ale je to jednoznačné - zamestnanec má priradené presne
+    jedno oddelenie.
+
+    Vráti (počet_doplnených, počet_preskočených). Preskočené sú tie,
+    kde zamestnanec nemá priradené žiadne alebo má priradené viac
+    oddelení naraz (tam sa nedá bezpečne uhádnuť, ktoré je správne).
+    """
+
+    from app.services.employee_department_service import (
+        get_employee_department_ids,
+    )
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        "SELECT id, employee_id FROM shifts WHERE department_id IS NULL"
+    )
+    rows = cursor.fetchall()
+
+    department_ids_cache = {}
+    updated = 0
+    skipped = 0
+
+    for shift_id, employee_id in rows:
+        if employee_id not in department_ids_cache:
+            department_ids_cache[employee_id] = get_employee_department_ids(
+                employee_id
+            )
+
+        department_ids = department_ids_cache[employee_id]
+
+        if len(department_ids) == 1:
+            department_id = next(iter(department_ids))
+
+            cursor.execute(
+                "UPDATE shifts SET department_id = ? WHERE id = ?",
+                (department_id, shift_id),
+            )
+
+            updated += 1
+        else:
+            skipped += 1
+
+    connection.commit()
+    connection.close()
+
+    return updated, skipped
 
 
 def get_shifts_by_employee(employee_id):

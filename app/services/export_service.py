@@ -1,7 +1,9 @@
-"""Export harmonogramu smien do Excelu (.xlsx) a do PDF."""
+"""Export harmonogramu smien do Excelu (.xlsx), do PDF a do iCalendar
+(.ics) na import do Google Kalendára / Outlooku."""
 
 import io
 import os
+from datetime import date, datetime, timedelta, timezone
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -246,3 +248,103 @@ def build_shifts_pdf(shifts, title="Harmonogram smien"):
     buffer.seek(0)
 
     return buffer
+
+
+# ---------------------------------------------------------------------
+# iCalendar (.ics) export
+# ---------------------------------------------------------------------
+
+
+def _ics_escape(text):
+    """Escapuje text podľa RFC 5545 (čiarky, bodkočiarky, zálomky)."""
+
+    return (
+        text.replace("\\", "\\\\")
+        .replace(",", "\\,")
+        .replace(";", "\\;")
+        .replace("\n", "\\n")
+    )
+
+
+def build_shifts_ics(shifts, calendar_name="Shift Planner"):
+    """Vytvorí .ics súbor (iCalendar) zo zoznamu smien a vráti ho ako
+    bytes - dá sa naimportovať/prihlásiť na odber v Google Kalendári,
+    Outlooku aj Apple Kalendári.
+
+    Nočné smeny (koniec <= začiatok) sa - rovnako ako v kalendári
+    a v PDF/XLSX exporte - považujú za prechádzajúce do nasledujúceho
+    dňa.
+    """
+
+    now_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Shift Planner//SK",
+        "CALSCALE:GREGORIAN",
+        f"X-WR-CALNAME:{_ics_escape(calendar_name)}",
+    ]
+
+    for shift in shifts:
+        (
+            shift_id,
+            first_name,
+            last_name,
+            shift_date,
+            start_time,
+            end_time,
+            shift_type,
+            employee_id,
+            department_id,
+            department_name,
+            created_at,
+        ) = shift
+
+        start_date_obj = date.fromisoformat(shift_date)
+        start_hour, start_minute = (
+            int(part) for part in start_time.split(":")[:2]
+        )
+        end_hour, end_minute = (
+            int(part) for part in end_time.split(":")[:2]
+        )
+
+        dtstart = datetime.combine(
+            start_date_obj, datetime.min.time()
+        ).replace(hour=start_hour, minute=start_minute)
+
+        end_date_obj = start_date_obj
+
+        if end_time <= start_time:
+            # Nočná smena - koniec je až nasledujúci deň.
+            end_date_obj = start_date_obj + timedelta(days=1)
+
+        dtend = datetime.combine(
+            end_date_obj, datetime.min.time()
+        ).replace(hour=end_hour, minute=end_minute)
+
+        summary = f"{first_name} {last_name} - {shift_type}"
+        location = department_name or ""
+
+        lines.extend(
+            [
+                "BEGIN:VEVENT",
+                f"UID:shift-{shift_id}@shiftplanner",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART:{dtstart.strftime('%Y%m%dT%H%M%S')}",
+                f"DTEND:{dtend.strftime('%Y%m%dT%H%M%S')}",
+                f"SUMMARY:{_ics_escape(summary)}",
+            ]
+        )
+
+        if location:
+            lines.append(f"LOCATION:{_ics_escape(location)}")
+
+        lines.append("END:VEVENT")
+
+    lines.append("END:VCALENDAR")
+
+    # iCalendar vyžaduje riadky ukončené CRLF.
+    ics_content = "\r\n".join(lines) + "\r\n"
+
+    return io.BytesIO(ics_content.encode("utf-8"))

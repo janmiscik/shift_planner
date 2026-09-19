@@ -840,6 +840,16 @@ tbody tr:last-child td {
     background: #d97706;
 }
 
+.legend-hours-near {
+    background: #fff7ed;
+    border: 2px solid #f59e0b;
+}
+
+.legend-hours-over {
+    background: #fef2f2;
+    border: 2px solid #dc2626;
+}
+
 /* =========================
    FOOTER
    ========================= */
@@ -1010,6 +1020,28 @@ tbody tr:last-child td {
     color: var(--text);
 }
 
+/* Zvýraznenie smien zamestnanca blížiaceho sa/prekračujúceho
+   týždenný fond hodín - navyše k farbe podľa typu smeny. */
+#shift-calendar .hours-near {
+    box-shadow: inset 0 0 0 2px #f59e0b;
+    position: relative;
+}
+
+#shift-calendar .hours-near::before {
+    content: "⚠";
+    margin-right: 3px;
+}
+
+#shift-calendar .hours-over {
+    box-shadow: inset 0 0 0 2px #dc2626;
+    position: relative;
+}
+
+#shift-calendar .hours-over::before {
+    content: "⛔";
+    margin-right: 3px;
+}
+
 /* =========================
    FIELD ERRORS (WTForms)
    ========================= */
@@ -1026,4 +1058,72 @@ tbody tr:last-child td {
     color: var(--muted);
     font-size: 12px;
     white-space: nowrap;
+}
+
+/* =========================
+   TLAČ (Ctrl+P)
+   ========================= */
+
+@media print {
+    .sidebar,
+    .topbar,
+    .app-footer,
+    .flash-messages,
+    .calendar-filter,
+    .actions,
+    .page-header .actions,
+    .btn,
+    .field-error,
+    .no-print,
+    form,
+    #shift-calendar .fc-toolbar,
+    #shift-calendar .fc-header-toolbar {
+        display: none !important;
+    }
+
+    * {
+        color: black !important;
+        background: white !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    body,
+    .app-shell,
+    .page-content {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        display: block !important;
+    }
+
+    .card {
+        border: 1px solid #999 !important;
+        page-break-inside: avoid;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    th,
+    td {
+        border: 1px solid #999 !important;
+        padding: 6px 8px !important;
+    }
+
+    a[href]::after {
+        content: "";
+    }
+
+    #shift-calendar .fc-event {
+        border: 1px solid #999 !important;
+        color: black !important;
+        background: #f0f0f0 !important;
+    }
+
+    .shift-legend {
+        page-break-inside: avoid;
+    }
 }

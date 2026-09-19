@@ -408,6 +408,454 @@ def test_api_shifts_event_end_date_for_overnight_shift(client):
     assert events[0]["end"] == "2026-09-22T06:00"
 
 
+# ---------------------------------------------------------------------
+# Vizuálne upozornenie na limit hodín v kalendári
+# ---------------------------------------------------------------------
+
+def test_calendar_event_flags_near_weekly_limit(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Blízko",
+            "position": "Operátor",
+            "weekly_hours": "20",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    # 8h + 10h = 18h z 20h fondu = 90 % -> "near"
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-22",
+            "start_time": "06:00",
+            "end_time": "16:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    response = client.get("/api/shifts?start=2026-09-01&end=2026-09-30")
+    events = response.get_json()
+
+    assert len(events) == 2
+    for event in events:
+        assert "hours-near" in event["className"]
+        assert event["extendedProps"]["weeklyHours"]["status"] == "near"
+        assert event["extendedProps"]["weeklyHours"]["used"] == 18.0
+
+
+def test_calendar_event_flags_over_weekly_limit_after_fund_reduction(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Prekroceny",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "16:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    # Vedúci dodatočne zníži fond pod už naplánovaný počet hodín.
+    post(
+        client,
+        f"/employees/edit/{employee_id}",
+        data={
+            "first_name": "Ján",
+            "last_name": "Prekroceny",
+            "position": "Operátor",
+            "weekly_hours": "8",
+        },
+    )
+
+    response = client.get("/api/shifts?start=2026-09-01&end=2026-09-30")
+    events = response.get_json()
+
+    assert len(events) == 1
+    assert "hours-over" in events[0]["className"]
+    assert events[0]["extendedProps"]["weeklyHours"]["status"] == "over"
+
+
+def test_api_shifts_filtered_by_department(client):
+    from app.services.employee_service import get_employees
+    from app.services.department_service import get_departments
+
+    post(client, "/departments/add", data={"name": "Výroba"})
+    post(client, "/departments/add", data={"name": "Sklad"})
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Novák",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Eva",
+            "last_name": "Krátka",
+            "position": "Skladníčka",
+            "weekly_hours": "40",
+        },
+    )
+
+    departments = get_departments()
+    vyroba_id = [d[0] for d in departments if d[1] == "Výroba"][0]
+    sklad_id = [d[0] for d in departments if d[1] == "Sklad"][0]
+
+    employees = get_employees()
+    jan_id = [e[0] for e in employees if e[1] == "Ján"][0]
+    eva_id = [e[0] for e in employees if e[1] == "Eva"][0]
+
+    post(
+        client,
+        f"/employees/{jan_id}/departments/add",
+        data={"department_id": str(vyroba_id), "weekly_hours": "40"},
+    )
+    post(
+        client,
+        f"/employees/{eva_id}/departments/add",
+        data={"department_id": str(sklad_id), "weekly_hours": "40"},
+    )
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(jan_id),
+            "department_id": str(vyroba_id),
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(eva_id),
+            "department_id": str(sklad_id),
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    response = client.get(
+        f"/api/shifts?start=2026-09-01&end=2026-09-30&department_id={vyroba_id}"
+    )
+    events = response.get_json()
+
+    assert len(events) == 1
+    assert events[0]["extendedProps"]["departmentName"] == "Výroba"
+
+
+def test_shifts_export_ics(client):
+    employee_id, department_id = _create_employee_with_department(client)
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": str(department_id),
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    response = client.get("/shifts/export.ics")
+    content = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert response.mimetype == "text/calendar"
+    assert content.startswith("BEGIN:VCALENDAR\r\n")
+    assert content.strip().endswith("END:VCALENDAR")
+    assert "BEGIN:VEVENT" in content
+    assert "DTSTART:20260921T060000" in content
+    assert "DTEND:20260921T140000" in content
+
+
+def test_shifts_export_ics_overnight_shift_spans_next_day(client):
+    employee_id, department_id = _create_employee_with_department(
+        client, weekly_hours="40", dept_hours="40"
+    )
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": str(department_id),
+            "shift_date": "2026-09-21",
+            "start_time": "22:00",
+            "end_time": "06:00",
+            "shift_type": "Nočná",
+        },
+    )
+
+    response = client.get("/shifts/export.ics")
+    content = response.get_data(as_text=True)
+
+    assert "DTSTART:20260921T220000" in content
+    assert "DTEND:20260922T060000" in content
+
+
+def test_employee_export_ics_contains_only_their_shifts(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Novák",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Eva",
+            "last_name": "Krátka",
+            "position": "Skladníčka",
+            "weekly_hours": "40",
+        },
+    )
+
+    employees = get_employees()
+    jan_id = [e[0] for e in employees if e[1] == "Ján"][0]
+    eva_id = [e[0] for e in employees if e[1] == "Eva"][0]
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(jan_id),
+            "department_id": "",
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(eva_id),
+            "department_id": "",
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    response = client.get(f"/employees/{jan_id}/export.ics")
+    content = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert content.count("BEGIN:VEVENT") == 1
+    assert "Ján Novák" in content
+    assert "Eva Krátka" not in content
+
+
+def test_employee_export_ics_404_for_missing_employee(client):
+    response = client.get("/employees/9999/export.ics")
+
+    assert response.status_code == 404
+
+
+def test_calendar_export_ics(client):
+    employee_id, department_id = _create_employee_with_department(client)
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": str(department_id),
+            "shift_date": "2026-09-21",
+            "start_time": "08:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    response = client.get("/calendar/export.ics?year=2026&month=9")
+
+    assert response.status_code == 200
+    assert response.mimetype == "text/calendar"
+    assert "BEGIN:VEVENT" in response.get_data(as_text=True)
+
+
+def _setup_department_filter_scenario(client):
+    """Ján je priradený len k Výrobe, Eva k Výrobe aj Skladu, Peter
+    nikam. Všetky ich smeny sú pridané BEZ explicitného oddelenia
+    (simulácia starších dát pred zavedením poľa oddelenia)."""
+
+    from app.services.employee_service import get_employees
+    from app.services.department_service import get_departments
+
+    post(client, "/departments/add", data={"name": "Výroba"})
+    post(client, "/departments/add", data={"name": "Sklad"})
+
+    departments = get_departments()
+    vyroba_id = [d[0] for d in departments if d[1] == "Výroba"][0]
+    sklad_id = [d[0] for d in departments if d[1] == "Sklad"][0]
+
+    for first_name in ("Ján", "Eva", "Peter"):
+        post(
+            client,
+            "/employees/add",
+            data={
+                "first_name": first_name,
+                "last_name": "Test",
+                "position": "Operátor",
+                "weekly_hours": "40",
+            },
+        )
+
+    employees = get_employees()
+    jan_id = [e[0] for e in employees if e[1] == "Ján"][0]
+    eva_id = [e[0] for e in employees if e[1] == "Eva"][0]
+    peter_id = [e[0] for e in employees if e[1] == "Peter"][0]
+
+    post(
+        client,
+        f"/employees/{jan_id}/departments/add",
+        data={"department_id": str(vyroba_id), "weekly_hours": "40"},
+    )
+    post(
+        client,
+        f"/employees/{eva_id}/departments/add",
+        data={"department_id": str(vyroba_id), "weekly_hours": "20"},
+    )
+    post(
+        client,
+        f"/employees/{eva_id}/departments/add",
+        data={"department_id": str(sklad_id), "weekly_hours": "20"},
+    )
+
+    for employee_id in (jan_id, eva_id, peter_id):
+        post(
+            client,
+            "/shifts/add",
+            data={
+                "employee_id": str(employee_id),
+                "department_id": "",
+                "shift_date": "2026-09-21",
+                "start_time": "06:00",
+                "end_time": "14:00",
+                "shift_type": "Ranná",
+            },
+        )
+
+    return {
+        "vyroba_id": vyroba_id,
+        "sklad_id": sklad_id,
+        "jan_id": jan_id,
+        "eva_id": eva_id,
+        "peter_id": peter_id,
+    }
+
+
+def test_department_filter_falls_back_to_employee_assignment(client):
+    ids = _setup_department_filter_scenario(client)
+
+    response = client.get(
+        "/api/shifts?start=2026-09-01&end=2026-09-30"
+        f"&department_id={ids['vyroba_id']}"
+    )
+    names = sorted(
+        e["extendedProps"]["employeeName"] for e in response.get_json()
+    )
+
+    # Ján aj Eva majú priradenie do Výroby (aj keď ich smeny samotné
+    # oddelenie explicitne nemajú nastavené) - Peter nikam priradený
+    # nie je, takže sa neukáže.
+    assert names == ["Eva Test", "Ján Test"]
+
+    response = client.get(
+        "/api/shifts?start=2026-09-01&end=2026-09-30"
+        f"&department_id={ids['sklad_id']}"
+    )
+    names = sorted(
+        e["extendedProps"]["employeeName"] for e in response.get_json()
+    )
+
+    assert names == ["Eva Test"]
+
+
+def test_backfill_shift_departments_only_unambiguous_cases(client):
+    from app.services.shift_service import (
+        backfill_shift_departments,
+        get_shifts,
+    )
+
+    _setup_department_filter_scenario(client)
+
+    updated, skipped = backfill_shift_departments()
+
+    assert updated == 1
+    assert skipped == 2
+
+    shifts = get_shifts()
+    jan_shift = [s for s in shifts if s[1] == "Ján"][0]
+    eva_shift = [s for s in shifts if s[1] == "Eva"][0]
+    peter_shift = [s for s in shifts if s[1] == "Peter"][0]
+
+    assert jan_shift[9] == "Výroba"
+    assert eva_shift[8] is None
+    assert peter_shift[8] is None
+
+
 def test_shift_delete(client):
     employee_id, department_id = _create_employee_with_department(client)
 

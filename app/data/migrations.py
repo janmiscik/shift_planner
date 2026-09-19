@@ -178,6 +178,33 @@ def _migration_006_shift_created_at(cursor):
         )
 
 
+def _migration_007_indexes(cursor):
+    """Pridá indexy pre najčastejšie dotazy (kalendár, kolízie,
+    týždenný fond hodín), aby sa pri väčšom počte smien nespomaľovali.
+    """
+
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_shifts_employee_date
+        ON shifts (employee_id, shift_date)
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_shifts_date
+        ON shifts (shift_date)
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_employee_departments_employee
+        ON employee_departments (employee_id)
+        """
+    )
+
+
 MIGRATIONS = [
     ("001_initial_schema", _migration_001_initial_schema),
     ("002_departments", _migration_002_departments),
@@ -185,6 +212,7 @@ MIGRATIONS = [
     ("004_weekly_hours", _migration_004_weekly_hours),
     ("005_employee_weekly_hours", _migration_005_employee_weekly_hours),
     ("006_shift_created_at", _migration_006_shift_created_at),
+    ("007_indexes", _migration_007_indexes),
 ]
 
 
