@@ -18,6 +18,12 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <link
+        rel="icon"
+        type="image/x-icon"
+        href="{{ url_for('static', filename='img/favicon.ico') }}"
+    >
+
+    <link
         rel="stylesheet"
         href="{{ url_for('static', filename='style.css') }}"
     >
@@ -30,19 +36,11 @@
     <aside class="sidebar">
 
         <div class="brand">
-            <div class="brand-mark">
-                SP
-            </div>
-
-            <div>
-                <div class="brand-title">
-                    SHIFT
-                </div>
-
-                <div class="brand-subtitle">
-                    PLANNER
-                </div>
-            </div>
+            <img
+                src="{{ url_for('static', filename='img/logo.png') }}"
+                alt="Shift Planner"
+                class="brand-logo"
+            >
         </div>
 
         <nav class="sidebar-nav">
