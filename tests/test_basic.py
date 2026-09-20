@@ -17,20 +17,26 @@ def _extract_csrf_token(html):
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
-    """Flask test client s dočasnou, prázdnou databázou pre každý test."""
+def client(tmp_path):
+    """Flask test client s dočasnou, prázdnou databázou pre každý test.
+
+    Appka sa vytvára nanovo pre KAŽDÝ test cez ``create_app()``
+    (application factory) s vlastnou dočasnou cestou k SQLite súboru
+    - vďaka tomu má každý test naozaj izolovanú databázu aj so
+    SQLAlchemy (ktoré si engine viaže na konkrétnu appku pri jej
+    vytvorení).
+    """
 
     db_path = tmp_path / "test_shift_planner.db"
 
-    import app.data.database as database_module
+    from app.extensions import db
+    from app.web.app import create_app
 
-    monkeypatch.setattr(database_module, "DATABASE_PATH", db_path)
-
-    from app.web.app import app as flask_app
-
+    flask_app = create_app(database_path=db_path)
     flask_app.config.update(TESTING=True, WTF_CSRF_ENABLED=True)
 
-    database_module.create_tables()
+    with flask_app.app_context():
+        db.create_all()
 
     with flask_app.test_client() as test_client:
         yield test_client
@@ -854,6 +860,408 @@ def test_backfill_shift_departments_only_unambiguous_cases(client):
     assert jan_shift[9] == "Výroba"
     assert eva_shift[8] is None
     assert peter_shift[8] is None
+
+
+# ---------------------------------------------------------------------
+# Kapacita oddelenia (minimálny počet ľudí na zmene)
+# ---------------------------------------------------------------------
+
+def test_understaffed_shift_is_detected(client):
+    from app.services.employee_service import get_employees
+    from app.services.capacity_service import get_understaffed_shifts
+
+    post(client, "/departments/add", data={"name": "Výroba", "min_staff": "3"})
+
+    from app.services.department_service import get_departments
+
+    dep_id = get_departments()[0][0]
+
+    for first_name in ("Ján", "Eva"):
+        post(
+            client,
+            "/employees/add",
+            data={
+                "first_name": first_name,
+                "last_name": "Test",
+                "position": "Operátor",
+                "weekly_hours": "40",
+            },
+        )
+
+    for employee in get_employees():
+        post(
+            client,
+            f"/employees/{employee[0]}/departments/add",
+            data={"department_id": str(dep_id), "weekly_hours": "40"},
+        )
+        post(
+            client,
+            "/shifts/add",
+            data={
+                "employee_id": str(employee[0]),
+                "department_id": str(dep_id),
+                "shift_date": "2026-09-21",
+                "start_time": "06:00",
+                "end_time": "14:00",
+                "shift_type": "Ranná",
+            },
+        )
+
+    result = get_understaffed_shifts("2026-09-01", "2026-09-30")
+
+    assert len(result) == 1
+    assert result[0]["scheduled"] == 2
+    assert result[0]["min_staff"] == 3
+    assert result[0]["department_name"] == "Výroba"
+
+
+def test_calendar_page_shows_capacity_warning(client):
+    from app.services.employee_service import get_employees
+    from app.services.department_service import get_departments
+
+    post(client, "/departments/add", data={"name": "Výroba", "min_staff": "3"})
+    dep_id = get_departments()[0][0]
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Test",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    post(
+        client,
+        f"/employees/{employee_id}/departments/add",
+        data={"department_id": str(dep_id), "weekly_hours": "40"},
+    )
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": str(dep_id),
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    response = client.get("/calendar?year=2026&month=9")
+    body = response.get_data(as_text=True)
+
+    assert "Nedostatočné obsadenie" in body
+    assert "naplánovaných 1" in body
+
+
+# ---------------------------------------------------------------------
+# Absencie (dovolenka, PN, OČR, náhradné voľno)
+# ---------------------------------------------------------------------
+
+def test_add_absence(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Dovolenkár",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    response = post(
+        client,
+        "/absences/add",
+        data={
+            "employee_id": str(employee_id),
+            "absence_type": "Dovolenka",
+            "start_date": "2026-09-20",
+            "end_date": "2026-09-25",
+            "note": "Letná dovolenka",
+        },
+    )
+
+    from app.services.absence_service import get_absences
+
+    absences = get_absences()
+    assert response.status_code == 200
+    assert len(absences) == 1
+    assert absences[0][4] == "Dovolenka"
+
+
+def test_shift_blocked_during_absence(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Dovolenkár",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    post(
+        client,
+        "/absences/add",
+        data={
+            "employee_id": str(employee_id),
+            "absence_type": "Dovolenka",
+            "start_date": "2026-09-20",
+            "end_date": "2026-09-25",
+        },
+    )
+
+    response = post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-22",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    from app.services.shift_service import get_shifts
+
+    assert len(get_shifts()) == 0
+    assert "schválenú neprítomnosť" in response.get_data(as_text=True)
+
+
+def test_shift_allowed_outside_absence_range(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Dovolenkár",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    post(
+        client,
+        "/absences/add",
+        data={
+            "employee_id": str(employee_id),
+            "absence_type": "Dovolenka",
+            "start_date": "2026-09-20",
+            "end_date": "2026-09-25",
+        },
+    )
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-26",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    from app.services.shift_service import get_shifts
+
+    assert len(get_shifts()) == 1
+
+
+def test_adding_absence_warns_about_existing_shifts(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Dovolenkár",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-27",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    response = post(
+        client,
+        "/absences/add",
+        data={
+            "employee_id": str(employee_id),
+            "absence_type": "PN",
+            "start_date": "2026-09-27",
+            "end_date": "2026-09-28",
+        },
+    )
+
+    assert "už naplánovaných" in response.get_data(as_text=True)
+
+
+def test_absence_end_before_start_is_rejected(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Dovolenkár",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    response = post(
+        client,
+        "/absences/add",
+        data={
+            "employee_id": str(employee_id),
+            "absence_type": "Dovolenka",
+            "start_date": "2026-09-25",
+            "end_date": "2026-09-20",
+        },
+    )
+
+    from app.services.absence_service import get_absences
+
+    assert len(get_absences()) == 0
+    assert "skorší ako dátum začiatku" in response.get_data(as_text=True)
+
+
+def test_delete_absence(client):
+    from app.services.employee_service import get_employees
+    from app.services.absence_service import get_absences
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Dovolenkár",
+            "position": "Operátor",
+            "weekly_hours": "40",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    post(
+        client,
+        "/absences/add",
+        data={
+            "employee_id": str(employee_id),
+            "absence_type": "Dovolenka",
+            "start_date": "2026-09-20",
+            "end_date": "2026-09-25",
+        },
+    )
+
+    absence_id = get_absences()[0][0]
+    token = _csrf_token_for(client, "/absences")
+
+    client.post(
+        f"/absences/delete/{absence_id}",
+        data={"csrf_token": token},
+        follow_redirects=True,
+    )
+
+    assert len(get_absences()) == 0
+
+
+# ---------------------------------------------------------------------
+# Zálohovanie databázy
+# ---------------------------------------------------------------------
+
+def test_backup_creates_file_next_to_database(tmp_path):
+    from app.services.backup_service import create_backup, list_backups
+
+    db_path = tmp_path / "test.db"
+    db_path.write_bytes(b"fake sqlite content")
+
+    backup_path = create_backup(db_path, label="test")
+
+    assert backup_path is not None
+    assert backup_path.exists()
+    assert backup_path.parent == tmp_path / "backups"
+    assert backup_path.read_bytes() == b"fake sqlite content"
+
+    backups = list_backups(db_path)
+    assert len(backups) == 1
+    assert backups[0][0] == backup_path
+
+
+def test_backup_returns_none_when_no_database(tmp_path):
+    from app.services.backup_service import create_backup
+
+    db_path = tmp_path / "does_not_exist.db"
+
+    assert create_backup(db_path) is None
+
+
+def test_restore_backup_brings_back_old_content(tmp_path):
+    from app.services.backup_service import create_backup, restore_backup
+
+    db_path = tmp_path / "test.db"
+    db_path.write_bytes(b"original content")
+
+    backup_path = create_backup(db_path, label="snapshot")
+
+    # Databáza sa medzitým "pokazí"/zmení.
+    db_path.write_bytes(b"corrupted content")
+
+    restore_backup(backup_path.name, db_path)
+
+    assert db_path.read_bytes() == b"original content"
+
+
+def test_restore_missing_backup_raises(tmp_path):
+    from app.services.backup_service import restore_backup
+
+    db_path = tmp_path / "test.db"
+    db_path.write_bytes(b"content")
+
+    with pytest.raises(FileNotFoundError):
+        restore_backup("neexistujuca_zaloha.db", db_path)
+
+
+def test_admin_backup_route_downloads_database(client):
+    response = client.get("/admin/backup")
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/x-sqlite3"
+    assert response.data[:16] == b"SQLite format 3\x00"
 
 
 def test_shift_delete(client):

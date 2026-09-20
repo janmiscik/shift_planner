@@ -8,12 +8,14 @@ exporty) žijú v ``app/services``.
 
 import os
 from datetime import date
+from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, flash, jsonify, redirect, render_template, request, send_file
+from flask import Blueprint, Flask, flash, jsonify, redirect, render_template, request, send_file
 from flask_wtf import CSRFProtect
 
-from app.data.database import create_tables
+from app.data.database import DEFAULT_DATABASE_PATH
+from app.extensions import db, migrate
 
 load_dotenv()
 
@@ -58,6 +60,15 @@ from app.services.shift_service import (
     validate_shift,
 )
 
+from app.services.absence_service import (
+    add_absence,
+    delete_absence,
+    get_absence,
+    get_absences,
+    get_absences_by_employee,
+    update_absence,
+)
+
 from app.services.calendar_service import (
     build_calendar_days,
     month_bounds,
@@ -70,7 +81,10 @@ from app.services.export_service import (
     build_shifts_workbook,
 )
 
+from app.services.capacity_service import get_understaffed_shifts
+
 from app.web.forms import (
+    AbsenceForm,
     DepartmentForm,
     EmployeeDepartmentForm,
     EmployeeForm,
@@ -78,21 +92,11 @@ from app.web.forms import (
 )
 
 
-app = Flask(__name__)
+bp = Blueprint("main", __name__)
+
+csrf = CSRFProtect()
 
 _DEFAULT_SECRET_KEY = "dev-docasny-kluc-zmen-v-produkcii"
-
-app.secret_key = os.environ.get("SECRET_KEY", _DEFAULT_SECRET_KEY)
-
-if app.secret_key == _DEFAULT_SECRET_KEY:
-    print(
-        "UPOZORNENIE: beží sa s predvoleným (nebezpečným) SECRET_KEY. "
-        "Pred nasadením do produkcie nastav premennú prostredia "
-        "SECRET_KEY na náhodný, tajný reťazec - napr.:\n"
-        "  python -c \"import secrets; print(secrets.token_hex(32))\""
-    )
-
-csrf = CSRFProtect(app)
 
 
 def _active_department_choices():
@@ -111,7 +115,7 @@ def _active_employee_choices():
     ]
 
 
-@app.route("/")
+@bp.route("/")
 def home():
     employees = get_employees()
     shifts = get_shifts()
@@ -123,18 +127,43 @@ def home():
     )
 
 
+@bp.route("/admin/backup")
+def admin_backup():
+    """Stiahne aktuálnu databázu ako súbor (a zároveň ju zazálohuje
+    aj do priečinka ``backups/`` na serveri)."""
+
+    from flask import current_app
+
+    from app.services.backup_service import create_backup
+
+    database_uri = current_app.config["SQLALCHEMY_DATABASE_URI"]
+    database_path = database_uri.replace("sqlite:///", "", 1)
+
+    backup_path = create_backup(database_path, label="stiahnutie")
+
+    if backup_path is None:
+        return "Databáza ešte neexistuje, niet čo zálohovať.", 404
+
+    return send_file(
+        backup_path,
+        as_attachment=True,
+        download_name=backup_path.name,
+        mimetype="application/x-sqlite3",
+    )
+
+
 # ---------------------------------------------------------------------
 # Zamestnanci
 # ---------------------------------------------------------------------
 
-@app.route("/employees")
+@bp.route("/employees")
 def employees_page():
     employees = get_employees()
 
     return render_template("employees.html", employees=employees)
 
 
-@app.route("/employees/add", methods=["GET", "POST"])
+@bp.route("/employees/add", methods=["GET", "POST"])
 def add_employee_page():
     form = EmployeeForm()
 
@@ -151,7 +180,7 @@ def add_employee_page():
     return render_template("add_employee.html", form=form)
 
 
-@app.route("/employees/edit/<int:employee_id>", methods=["GET", "POST"])
+@bp.route("/employees/edit/<int:employee_id>", methods=["GET", "POST"])
 def edit_employee_page(employee_id):
     employee = get_employee(employee_id)
 
@@ -204,7 +233,7 @@ def edit_employee_page(employee_id):
     )
 
 
-@app.route(
+@bp.route(
     "/employees/<int:employee_id>/departments/add",
     methods=["GET", "POST"],
 )
@@ -273,7 +302,7 @@ def add_employee_department_page(employee_id):
     )
 
 
-@app.route(
+@bp.route(
     "/employees/<int:employee_id>/departments/edit/<int:assignment_id>",
     methods=["GET", "POST"],
 )
@@ -352,7 +381,7 @@ def edit_employee_department_page(employee_id, assignment_id):
     )
 
 
-@app.route(
+@bp.route(
     "/employees/<int:employee_id>/departments/delete/<int:assignment_id>",
     methods=["POST"],
 )
@@ -370,7 +399,7 @@ def delete_employee_department_page(employee_id, assignment_id):
     return redirect(f"/employees/edit/{employee_id}")
 
 
-@app.route("/employees/<int:employee_id>/export.ics")
+@bp.route("/employees/<int:employee_id>/export.ics")
 def export_employee_shifts_ics(employee_id):
     employee = get_employee(employee_id)
 
@@ -390,7 +419,7 @@ def export_employee_shifts_ics(employee_id):
     )
 
 
-@app.route("/employees/toggle/<int:employee_id>", methods=["POST"])
+@bp.route("/employees/toggle/<int:employee_id>", methods=["POST"])
 def toggle_employee_page(employee_id):
     employee = get_employee(employee_id)
 
@@ -407,19 +436,19 @@ def toggle_employee_page(employee_id):
 # Oddelenia
 # ---------------------------------------------------------------------
 
-@app.route("/departments")
+@bp.route("/departments")
 def departments_page():
     departments = get_departments()
 
     return render_template("departments.html", departments=departments)
 
 
-@app.route("/departments/add", methods=["GET", "POST"])
+@bp.route("/departments/add", methods=["GET", "POST"])
 def add_department_page():
     form = DepartmentForm()
 
     if form.validate_on_submit():
-        department_id = add_department(form.name.data)
+        department_id = add_department(form.name.data, form.min_staff.data)
 
         if department_id is None:
             flash("Oddelenie s týmto názvom už existuje.", "error")
@@ -430,7 +459,7 @@ def add_department_page():
     return render_template("add_department.html", form=form)
 
 
-@app.route("/departments/edit/<int:department_id>", methods=["GET", "POST"])
+@bp.route("/departments/edit/<int:department_id>", methods=["GET", "POST"])
 def edit_department_page(department_id):
     department = get_department(department_id)
 
@@ -441,9 +470,12 @@ def edit_department_page(department_id):
 
     if request.method == "GET":
         form.name.data = department[1]
+        form.min_staff.data = department[3]
 
     if form.validate_on_submit():
-        updated = update_department(department_id, form.name.data)
+        updated = update_department(
+            department_id, form.name.data, form.min_staff.data
+        )
 
         if not updated:
             flash("Oddelenie s týmto názvom už existuje.", "error")
@@ -463,7 +495,7 @@ def edit_department_page(department_id):
     )
 
 
-@app.route("/departments/toggle/<int:department_id>", methods=["POST"])
+@bp.route("/departments/toggle/<int:department_id>", methods=["POST"])
 def toggle_department_page(department_id):
     department = get_department(department_id)
 
@@ -480,14 +512,14 @@ def toggle_department_page(department_id):
 # Smeny
 # ---------------------------------------------------------------------
 
-@app.route("/shifts")
+@bp.route("/shifts")
 def shifts_page():
     shifts = get_shifts()
 
     return render_template("shifts.html", shifts=shifts)
 
 
-@app.route("/shifts/export.xlsx")
+@bp.route("/shifts/export.xlsx")
 def export_shifts_xlsx():
     shifts = get_shifts()
     workbook = build_shifts_workbook(shifts, title="Všetky smeny")
@@ -503,7 +535,7 @@ def export_shifts_xlsx():
     )
 
 
-@app.route("/shifts/export.pdf")
+@bp.route("/shifts/export.pdf")
 def export_shifts_pdf():
     shifts = get_shifts()
     pdf = build_shifts_pdf(shifts, title="Harmonogram smien - všetky")
@@ -516,7 +548,7 @@ def export_shifts_pdf():
     )
 
 
-@app.route("/shifts/export.ics")
+@bp.route("/shifts/export.ics")
 def export_shifts_ics():
     shifts = get_shifts()
     ics = build_shifts_ics(shifts, calendar_name="Shift Planner - všetky smeny")
@@ -529,7 +561,7 @@ def export_shifts_ics():
     )
 
 
-@app.route("/shifts/add", methods=["GET", "POST"])
+@bp.route("/shifts/add", methods=["GET", "POST"])
 def add_shift_page():
     employees = get_employees()
 
@@ -613,7 +645,7 @@ def add_shift_page():
     return redirect("/shifts")
 
 
-@app.route("/shifts/edit/<int:shift_id>", methods=["GET", "POST"])
+@bp.route("/shifts/edit/<int:shift_id>", methods=["GET", "POST"])
 def edit_shift_page(shift_id):
     shift = get_shift(shift_id)
     employees = get_employees()
@@ -683,7 +715,7 @@ def edit_shift_page(shift_id):
     return redirect("/shifts")
 
 
-@app.route("/shifts/delete/<int:shift_id>", methods=["POST"])
+@bp.route("/shifts/delete/<int:shift_id>", methods=["POST"])
 def delete_shift_page(shift_id):
     delete_shift(shift_id)
 
@@ -691,10 +723,159 @@ def delete_shift_page(shift_id):
 
 
 # ---------------------------------------------------------------------
+# Absencie (dovolenka, PN, OČR, náhradné voľno)
+# ---------------------------------------------------------------------
+
+@bp.route("/absences")
+def absences_page():
+    employee_id = request.args.get("employee_id", type=int)
+
+    if employee_id:
+        absences = get_absences_by_employee(employee_id)
+    else:
+        absences = get_absences()
+
+    employees = get_employees()
+
+    return render_template(
+        "absences.html",
+        absences=absences,
+        employees=employees,
+        selected_employee_id=employee_id,
+    )
+
+
+@bp.route("/absences/add", methods=["GET", "POST"])
+def add_absence_page():
+    employees = get_employees()
+
+    form = AbsenceForm()
+    form.employee_id.choices = _active_employee_choices()
+
+    if request.method == "GET":
+        preselected_employee_id = request.args.get("employee_id", type=int)
+
+        if preselected_employee_id:
+            form.employee_id.data = preselected_employee_id
+
+        return render_template(
+            "add_absence.html",
+            employees=employees,
+            form=form,
+        )
+
+    if not form.validate_on_submit():
+        return render_template(
+            "add_absence.html",
+            employees=employees,
+            form=form,
+        )
+
+    if form.end_date.data < form.start_date.data:
+        flash("Dátum konca nemôže byť skorší ako dátum začiatku.", "error")
+
+        return render_template(
+            "add_absence.html",
+            employees=employees,
+            form=form,
+        )
+
+    employee_id = form.employee_id.data
+    start_date = form.start_date.data.isoformat()
+    end_date = form.end_date.data.isoformat()
+
+    add_absence(
+        employee_id,
+        form.absence_type.data,
+        start_date,
+        end_date,
+        note=form.note.data,
+    )
+
+    conflicting_shifts = [
+        shift
+        for shift in get_shifts_by_employee(employee_id)
+        if start_date <= shift[3] <= end_date
+    ]
+
+    if conflicting_shifts:
+        flash(
+            f"Pozor: zamestnanec má v tomto období už naplánovaných "
+            f"{len(conflicting_shifts)} smien - skontroluj ich na "
+            "stránke /shifts.",
+            "error",
+        )
+
+    return redirect("/absences")
+
+
+@bp.route("/absences/edit/<int:absence_id>", methods=["GET", "POST"])
+def edit_absence_page(absence_id):
+    absence = get_absence(absence_id)
+
+    if absence is None:
+        return "Neprítomnosť neexistuje.", 404
+
+    employees = get_employees()
+
+    form = AbsenceForm()
+    form.employee_id.choices = _active_employee_choices()
+
+    if request.method == "GET":
+        form.employee_id.data = absence[1]
+        form.absence_type.data = absence[2]
+        form.start_date.data = date.fromisoformat(absence[3])
+        form.end_date.data = date.fromisoformat(absence[4])
+        form.note.data = absence[5]
+
+        return render_template(
+            "edit_absence.html",
+            absence=absence,
+            employees=employees,
+            form=form,
+        )
+
+    if not form.validate_on_submit():
+        return render_template(
+            "edit_absence.html",
+            absence=absence,
+            employees=employees,
+            form=form,
+        )
+
+    if form.end_date.data < form.start_date.data:
+        flash("Dátum konca nemôže byť skorší ako dátum začiatku.", "error")
+
+        return render_template(
+            "edit_absence.html",
+            absence=absence,
+            employees=employees,
+            form=form,
+        )
+
+    update_absence(
+        absence_id,
+        form.absence_type.data,
+        form.start_date.data.isoformat(),
+        form.end_date.data.isoformat(),
+        note=form.note.data,
+    )
+
+    return redirect("/absences")
+
+
+@bp.route("/absences/delete/<int:absence_id>", methods=["POST"])
+def delete_absence_page(absence_id):
+    delete_absence(absence_id)
+
+    return redirect("/absences")
+
+
+# ---------------------------------------------------------------------
 # Kalendár
 # ---------------------------------------------------------------------
 
-@app.route("/calendar")
+@bp.route("/calendar")
 def calendar_page():
     today = date.today()
 
@@ -708,6 +889,9 @@ def calendar_page():
 
     calendar_days = build_calendar_days(year, month)
 
+    first_day, last_day = month_bounds(year, month)
+    understaffed_shifts = get_understaffed_shifts(first_day, last_day)
+
     return render_template(
         "calendar.html",
         year=year,
@@ -717,10 +901,11 @@ def calendar_page():
         departments=departments,
         selected_employee_id=employee_id,
         selected_department_id=department_id,
+        understaffed_shifts=understaffed_shifts,
     )
 
 
-@app.route("/calendar/export.xlsx")
+@bp.route("/calendar/export.xlsx")
 def export_calendar_xlsx():
     today = date.today()
 
@@ -746,7 +931,7 @@ def export_calendar_xlsx():
     )
 
 
-@app.route("/calendar/export.pdf")
+@bp.route("/calendar/export.pdf")
 def export_calendar_pdf():
     today = date.today()
 
@@ -769,7 +954,7 @@ def export_calendar_pdf():
     )
 
 
-@app.route("/calendar/export.ics")
+@bp.route("/calendar/export.ics")
 def export_calendar_ics():
     today = date.today()
 
@@ -796,7 +981,7 @@ def export_calendar_ics():
 # JSON API (AJAX pre formuláre a FullCalendar drag-and-drop)
 # ---------------------------------------------------------------------
 
-@app.route("/api/employees/<int:employee_id>/departments")
+@bp.route("/api/employees/<int:employee_id>/departments")
 def api_employee_departments(employee_id):
     assignments = get_employee_departments(employee_id)
 
@@ -808,7 +993,7 @@ def api_employee_departments(employee_id):
     )
 
 
-@app.route("/api/shifts")
+@bp.route("/api/shifts")
 def api_shifts():
     """Vráti smeny pre FullCalendar.
 
@@ -849,7 +1034,7 @@ def api_shifts():
     return jsonify(shifts_to_fullcalendar_events(shifts))
 
 
-@app.route("/api/shifts/<int:shift_id>/move", methods=["POST"])
+@bp.route("/api/shifts/<int:shift_id>/move", methods=["POST"])
 def api_move_shift(shift_id):
     """Presunie smenu po drag-and-drop v kalendári (FullCalendar)."""
 
@@ -881,6 +1066,44 @@ def api_move_shift(shift_id):
     return jsonify({"ok": True})
 
 
+def create_app(database_path=None):
+    """Vytvorí a nakonfiguruje inštanciu Flask appky.
+
+    ``database_path`` - explicitná cesta k SQLite súboru. Ak sa
+    nezadá, použije sa predvolená cesta z ``app/data/database.py``.
+    Testy si sem posielajú vlastnú dočasnú cestu, aby mal každý test
+    úplne izolovanú databázu (nutné pre správne fungovanie
+    SQLAlchemy - engine sa viaže na appku pri jej vytvorení, nie pri
+    každom volaní ako predtým s ručnými sqlite3 pripojeniami).
+    """
+
+    app = Flask(__name__)
+
+    app.secret_key = os.environ.get("SECRET_KEY", _DEFAULT_SECRET_KEY)
+
+    if app.secret_key == _DEFAULT_SECRET_KEY:
+        print(
+            "UPOZORNENIE: beží sa s predvoleným (nebezpečným) SECRET_KEY. "
+            "Pred nasadením do produkcie nastav premennú prostredia "
+            "SECRET_KEY na náhodný, tajný reťazec - napr.:\n"
+            "  python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+
+    resolved_path = database_path or DEFAULT_DATABASE_PATH
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{resolved_path}"
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    migrations_dir = Path(__file__).resolve().parent.parent.parent / "migrations"
+
+    db.init_app(app)
+    migrate.init_app(app, db, directory=str(migrations_dir))
+    csrf.init_app(app)
+
+    app.register_blueprint(bp)
+
+    return app
+
+
 if __name__ == "__main__":
-    create_tables()
-    app.run(debug=True)
+    create_app().run(debug=True)

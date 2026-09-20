@@ -7,9 +7,12 @@ testovacie/ukážkové dáta - robil to skôr a spôsobovalo to duplicitné
 smeny pri každom opätovnom spustení.
 """
 
-from app.data.database import create_tables
+import sqlalchemy as sa
+
+from app.extensions import db
 from app.services.employee_service import get_employees
 from app.services.shift_service import get_shifts
+from app.web.app import create_app
 
 
 def main():
@@ -17,33 +20,41 @@ def main():
     print("       SHIFT PLANNER")
     print("=" * 40)
 
-    create_tables()
+    app = create_app()
 
-    employees = get_employees()
+    with app.app_context():
+        inspector = sa.inspect(db.engine)
 
-    if not employees:
-        print("V databáze nie sú žiadni zamestnanci.")
-        print(
-            "Spusti webovú appku príkazom "
-            "'python manage.py runserver' a pridaj ich tam."
-        )
-        return
+        if "employees" not in inspector.get_table_names():
+            print("Databáza ešte nie je pripravená.")
+            print("Spusti najprv: python manage.py migrate")
+            return
 
-    print(f"Zamestnancov v databáze: {len(employees)}")
+        employees = get_employees()
 
-    shifts = get_shifts()
+        if not employees:
+            print("V databáze nie sú žiadni zamestnanci.")
+            print(
+                "Spusti webovú appku príkazom "
+                "'python manage.py runserver' a pridaj ich tam."
+            )
+            return
 
-    print(f"Smien v databáze: {len(shifts)}")
-    print()
+        print(f"Zamestnancov v databáze: {len(employees)}")
 
-    for shift in shifts:
-        print(
-            f"{shift[0]}. "
-            f"{shift[1]} {shift[2]} | "
-            f"{shift[3]} | "
-            f"{shift[4]} - {shift[5]} | "
-            f"{shift[6]}"
-        )
+        shifts = get_shifts()
+
+        print(f"Smien v databáze: {len(shifts)}")
+        print()
+
+        for shift in shifts:
+            print(
+                f"{shift[0]}. "
+                f"{shift[1]} {shift[2]} | "
+                f"{shift[3]} | "
+                f"{shift[4]} - {shift[5]} | "
+                f"{shift[6]}"
+            )
 
     print()
     print(

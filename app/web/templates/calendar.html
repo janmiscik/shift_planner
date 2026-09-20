@@ -134,6 +134,34 @@
 </div>
 
 
+{% if understaffed_shifts %}
+
+    <div class="capacity-warning">
+
+        <h3>
+            ⚠ Nedostatočné obsadenie smien
+        </h3>
+
+        <ul>
+
+            {% for item in understaffed_shifts %}
+
+                <li>
+                    <strong>{{ item.shift_date }}</strong>
+                    - {{ item.shift_type }} - {{ item.department_name }}:
+                    naplánovaných {{ item.scheduled }}
+                    z minimálne {{ item.min_staff }} ľudí
+                </li>
+
+            {% endfor %}
+
+        </ul>
+
+    </div>
+
+{% endif %}
+
+
 <div class="card">
     <div id="shift-calendar"></div>
 </div>

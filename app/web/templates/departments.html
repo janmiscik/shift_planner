@@ -37,6 +37,7 @@
                 <tr>
                     <th>ID</th>
                     <th>Názov</th>
+                    <th>Min. počet ľudí na zmene</th>
                     <th>Stav</th>
                     <th>Akcie</th>
                 </tr>
@@ -57,6 +58,10 @@
                             <strong>
                                 {{ department[1] }}
                             </strong>
+                        </td>
+
+                        <td>
+                            {{ department[3] if department[3] is not none else "—" }}
                         </td>
 
                         <td>

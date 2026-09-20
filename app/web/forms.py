@@ -4,6 +4,7 @@ from flask_wtf import FlaskForm
 from wtforms import (
     DateField,
     FloatField,
+    IntegerField,
     SelectField,
     StringField,
     TimeField,
@@ -51,6 +52,17 @@ class DepartmentForm(FlaskForm):
         validators=[
             DataRequired(message="Zadaj názov oddelenia."),
             Length(max=100),
+        ],
+    )
+    min_staff = IntegerField(
+        "Minimálny počet ľudí na zmene",
+        validators=[
+            Optional(),
+            NumberRange(
+                min=1,
+                max=500,
+                message="Zadaj kladné číslo (alebo nechaj prázdne).",
+            ),
         ],
     )
 
@@ -109,4 +121,37 @@ class ShiftForm(FlaskForm):
         "Typ smeny",
         choices=SHIFT_TYPE_CHOICES,
         validators=[DataRequired(message="Vyber typ smeny.")],
+    )
+
+
+ABSENCE_TYPE_CHOICES = [
+    ("Dovolenka", "Dovolenka"),
+    ("PN", "PN"),
+    ("OČR", "OČR"),
+    ("Náhradné voľno", "Náhradné voľno"),
+]
+
+
+class AbsenceForm(FlaskForm):
+    employee_id = SelectField(
+        "Zamestnanec",
+        validators=[DataRequired(message="Vyber zamestnanca.")],
+        coerce=int,
+    )
+    absence_type = SelectField(
+        "Typ neprítomnosti",
+        choices=ABSENCE_TYPE_CHOICES,
+        validators=[DataRequired(message="Vyber typ neprítomnosti.")],
+    )
+    start_date = DateField(
+        "Od",
+        validators=[DataRequired(message="Zadaj dátum začiatku.")],
+    )
+    end_date = DateField(
+        "Do",
+        validators=[DataRequired(message="Zadaj dátum konca.")],
+    )
+    note = StringField(
+        "Poznámka",
+        validators=[Optional(), Length(max=255)],
     )

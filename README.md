@@ -8,12 +8,17 @@ Webová aplikácia (Flask) na plánovanie pracovných zmien zamestnancov.
   k viacerým oddeleniam s rozdelením pracovného fondu),
 - vytváranie a úprava pracovných smien,
 - automatická kontrola pri ukladaní smeny:
-  - zamedzenie prekrývania smien toho istého zamestnanca,
+  - zamedzenie prekrývania smien toho istého zamestnanca (aj cez
+    polnoc - nočné smeny),
   - kontrola týždenného pracovného fondu zamestnanca,
   - zamestnanca je možné priradiť len na oddelenie, ku ktorému má
     aktívnu väzbu,
+  - zohľadnenie schválených absencií (dovolenka, PN, OČR, náhradné
+    voľno),
+- upozornenie na nedostatočné obsadenie smeny (minimálny počet ľudí
+  na oddelenie),
 - interaktívny kalendár (FullCalendar) s presúvaním smien
-  metódou drag-and-drop,
+  metódou drag-and-drop, filtrom podľa oddelenia/zamestnanca,
 - export harmonogramu do Excelu (.xlsx), PDF a iCalendar (.ics -
   zamestnanec si svoje smeny vie naimportovať do Google Kalendára
   alebo Outlooku cez `/employees/<id>/export.ics`),
@@ -73,22 +78,106 @@ pytest
 
 ```
 app/
-  data/          - pripojenie k DB a migrácie (app/data/migrations.py)
-  models/        - jednoduché dátové modely
-  services/      - biznis logika (validácie, kalendár, export) - bez Flasku
-  web/           - Flask aplikácia: routes (app.py), formuláre (forms.py),
-                   šablóny a statické súbory
-tests/           - pytest testy (Flask test client + dočasná DB)
-manage.py        - CLI: migrate / runserver
+  extensions.py  - zdieľané rozšírenia (SQLAlchemy `db`, Flask-Migrate)
+  orm_models.py  - SQLAlchemy modely (Employee, Department,
+                   EmployeeDepartment, Shift) a ich vzťahy
+  data/          - cesta k SQLite súboru
+  models/        - staršie jednoduché dátové modely (nepoužívané)
+  services/      - biznis logika (validácie, kalendár, export) -
+                   pristupuje k DB cez SQLAlchemy, vracia dáta
+                   v rovnakom tvare (n-tice) ako predtým, aby
+                   šablóny a testy fungovali bez zmien
+  web/           - Flask aplikácia: `create_app()` factory (app.py),
+                   formuláre (forms.py), šablóny a statické súbory
+migrations/      - Alembic migračné skripty (Flask-Migrate)
+tests/           - pytest testy (Flask test client + dočasná DB,
+                   vlastná appka pre každý test cez `create_app()`)
+manage.py        - CLI: migrate / runserver / cleanup-duplicates / ...
 ```
 
-## Databázové migrácie
+### Prečo tuply, nie ORM objekty v šablónach?
 
-Namiesto viacerých samostatných skriptov je schéma spravovaná cez
-jeden runner (`app/data/migrations.py`). Každá migrácia sa eviduje
-v tabuľke `schema_migrations` a spustí sa len raz - `python manage.py
-migrate` je preto bezpečné spúšťať opakovane, aj na už existujúcej
-databáze.
+Service funkcie interne používajú skutočné SQLAlchemy modely a
+vzťahy (napr. M:N medzi zamestnancom a oddelením cez
+`employee.departments`), ale navonok vracajú dáta v rovnakom tvare
+(n-tice/`Row`), ako predtým s ručným SQL. Vďaka tomu prechod na ORM
+nevyžadoval prepísať všetky šablóny a testy naraz - ak by si chcel aj
+šablóny prepísať na prácu priamo s ORM objektmi (`shift.employee.first_name`
+namiesto `shift[1]`), dá sa to urobiť ako samostatný, menší krok.
+
+## Databázové migrácie (SQLAlchemy + Alembic)
+
+Dátová vrstva beží na SQLAlchemy (modely v `app/orm_models.py`),
+schéma sa spravuje cez Alembic (`Flask-Migrate`). Migračné skripty sú
+v `migrations/versions/`.
+
+```powershell
+python manage.py migrate
+```
+
+Tento príkaz sám rozozná, v akom stave je tvoja databáza:
+- **úplne nová** databáza -> vytvorí všetky tabuľky od začiatku,
+- **staršia databáza** (z verzie appky spred prechodu na Alembic,
+  spravovanej ručným migračným runnerom) -> jej schéma je už
+  aktuálna, príkaz ju len "označí" ako spravovanú Alembicom
+  (Alembic stamp) - **žiadne dáta sa nemenia ani nemažú**,
+- databáza **už spravovaná Alembicom** -> normálna aktualizácia na
+  najnovšiu migráciu.
+
+Je preto bezpečné spúšťať ho opakovane, kedykoľvek, aj na už
+existujúcej databáze s dátami.
+
+Ak v budúcnosti zmeníš modely v `app/orm_models.py`, novú migráciu
+vygeneruješ takto:
+
+```powershell
+$env:FLASK_APP = "app.web.app:create_app"
+flask db migrate -m "popis zmeny"
+python manage.py migrate
+```
+
+## Zálohovanie databázy
+
+**Nikdy nemaž celý priečinok projektu, ak v ňom máš aj
+`app/data/shift_planner.db`** - ten súbor obsahuje všetky tvoje
+reálne dáta a nie je súčasťou zipu, ktorý dostaneš pri aktualizácii
+appky. Pri aktualizácii kódu vždy nahrádzaj len súbory appky, nikdy
+nemaž priečinok `app/data/` (alebo si databázu najprv zálohuj mimo
+projektu).
+
+Appka teraz zálohuje automaticky aj ručne:
+
+- **Automaticky** pred každým `python manage.py migrate` (do
+  `app/data/backups/`).
+- **Ručne** z príkazového riadku:
+  ```powershell
+  python manage.py backup
+  python manage.py list-backups
+  python manage.py restore <nazov_suboru.db>
+  ```
+- **Jedným klikom v appke** - odkaz "💾 Zálohovať databázu" v bočnom
+  menu stiahne aktuálnu databázu ako súbor do prehliadača (a zároveň
+  ju uloží aj do `app/data/backups/` na serveri). Toto je najlepší
+  spôsob, ako si urobiť kópiu niekam MIMO priečinka projektu (na
+  Plochu, USB kľúč, cloud) - napr. pred väčšou aktualizáciou appky.
+
+Zálohy sa neukladajú do gitu (`app/data/backups/` je v
+`.gitignore`).
+
+## Kapacita oddelenia
+
+Pri oddelení môžeš nastaviť "Minimálny počet ľudí na zmene". Ak je
+na konkrétny deň/typ smeny v danom oddelení naplánovaných menej ľudí,
+appka na to upozorní v kalendári (oranžový panel nad mriežkou).
+
+## Absencie (dovolenka, PN, OČR, náhradné voľno)
+
+Stránka `/absences` - pridávanie, úprava a mazanie neprítomností
+zamestnancov. Appka automaticky zohľadňuje schválené absencie pri
+plánovaní smien: zamestnancovi sa nedá pridať/presunúť smena na deň,
+kedy má neprítomnosť. Naopak, ak pridáš absenciu na obdobie, kedy už
+má naplánované smeny, appka ťa na to len upozorní (nezablokuje) -
+rozhodnutie necháva na tebe.
 
 ## Filter podľa oddelenia v kalendári
 

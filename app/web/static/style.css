@@ -1127,3 +1127,32 @@ tbody tr:last-child td {
         page-break-inside: avoid;
     }
 }
+
+/* =========================
+   KAPACITA - NEDOSTATOCNE OBSADENIE
+   ========================= */
+
+.capacity-warning {
+    background: #fff7ed;
+    border: 2px solid #f59e0b;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.capacity-warning h3 {
+    margin: 0 0 10px 0;
+    font-size: 15px;
+    color: #92400e;
+}
+
+.capacity-warning ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.capacity-warning li {
+    font-size: 13.5px;
+    color: #92400e;
+    margin-bottom: 4px;
+}

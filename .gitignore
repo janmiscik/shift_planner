@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .env
 *.db
+app/data/backups/
 .idea/
 .vscode/
 app/data/*.db

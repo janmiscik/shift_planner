@@ -1,97 +1,56 @@
 """Služby pre prácu so zamestnancami."""
 
-from app.data.database import get_connection
+from sqlalchemy import select
+
+from app.extensions import db
+from app.orm_models import Employee
 
 
-def add_employee(
-    first_name,
-    last_name,
-    position,
-    weekly_hours,
-):
+def add_employee(first_name, last_name, position, weekly_hours):
     """Pridá zamestnanca do databázy."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        INSERT INTO employees (
-            first_name,
-            last_name,
-            position,
-            employment_type,
-            weekly_hours
-        )
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (
-            first_name,
-            last_name,
-            position,
-            "custom",
-            weekly_hours,
-        ),
+    employee = Employee(
+        first_name=first_name,
+        last_name=last_name,
+        position=position,
+        employment_type="custom",
+        weekly_hours=weekly_hours,
     )
 
-    connection.commit()
-    employee_id = cursor.lastrowid
-    connection.close()
+    db.session.add(employee)
+    db.session.commit()
 
-    return employee_id
+    return employee.id
 
 
 def get_employees():
     """Načíta všetkých zamestnancov."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    query = select(
+        Employee.id,
+        Employee.first_name,
+        Employee.last_name,
+        Employee.position,
+        Employee.weekly_hours,
+        Employee.active,
+    ).order_by(Employee.last_name, Employee.first_name)
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            first_name,
-            last_name,
-            position,
-            weekly_hours,
-            active
-        FROM employees
-        ORDER BY last_name, first_name
-        """
-    )
-
-    employees = cursor.fetchall()
-    connection.close()
-
-    return employees
+    return db.session.execute(query).all()
 
 
 def get_employee(employee_id):
     """Načíta jedného zamestnanca."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    query = select(
+        Employee.id,
+        Employee.first_name,
+        Employee.last_name,
+        Employee.position,
+        Employee.weekly_hours,
+        Employee.active,
+    ).where(Employee.id == employee_id)
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            first_name,
-            last_name,
-            position,
-            weekly_hours,
-            active
-        FROM employees
-        WHERE id = ?
-        """,
-        (employee_id,),
-    )
-
-    employee = cursor.fetchone()
-    connection.close()
-
-    return employee
+    return db.session.execute(query).first()
 
 
 def update_employee(
@@ -103,49 +62,27 @@ def update_employee(
 ):
     """Upraví údaje zamestnanca."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    employee = db.session.get(Employee, employee_id)
 
-    cursor.execute(
-        """
-        UPDATE employees
-        SET
-            first_name = ?,
-            last_name = ?,
-            position = ?,
-            weekly_hours = ?
-        WHERE id = ?
-        """,
-        (
-            first_name,
-            last_name,
-            position,
-            weekly_hours,
-            employee_id,
-        ),
-    )
+    if employee is None:
+        return
 
-    connection.commit()
-    connection.close()
+    employee.first_name = first_name
+    employee.last_name = last_name
+    employee.position = position
+    employee.weekly_hours = weekly_hours
+
+    db.session.commit()
 
 
 def set_employee_active(employee_id, active):
     """Aktivuje alebo deaktivuje zamestnanca."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    employee = db.session.get(Employee, employee_id)
 
-    cursor.execute(
-        """
-        UPDATE employees
-        SET active = ?
-        WHERE id = ?
-        """,
-        (
-            active,
-            employee_id,
-        ),
-    )
+    if employee is None:
+        return
 
-    connection.commit()
-    connection.close()
+    employee.active = active
+
+    db.session.commit()

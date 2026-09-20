@@ -1,294 +1,152 @@
-"""Služby pre priradenie zamestnancov k oddeleniam."""
+"""Služby pre priradenie zamestnancov k oddeleniam (M:N vzťah).
 
-from app.data.database import get_connection
+Vďaka SQLAlchemy vzťahom (``Employee.department_links``,
+``association_proxy``) sa dá k oddeleniam zamestnanca pristupovať
+priamo cez ``employee.departments`` bez ručného JOIN-u - využíva to
+napr. ``get_employee_department_ids``.
+"""
+
+from sqlalchemy import func, select
+
+from app.extensions import db
+from app.orm_models import Department, Employee, EmployeeDepartment
 
 
-def add_employee_department(
-    employee_id,
-    department_id,
-    weekly_hours,
-):
-    """Priradí zamestnanca k oddeleniu."""
+def add_employee_department(employee_id, department_id, weekly_hours):
+    """Priradí zamestnanca k oddeleniu.
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    Vráti ``None``, ak už priradenie existuje (namiesto pádu na
+    UNIQUE obmedzení).
+    """
 
-    cursor.execute(
-        """
-        SELECT id
-        FROM employee_departments
-        WHERE employee_id = ?
-          AND department_id = ?
-        """,
-        (
-            employee_id,
-            department_id,
-        ),
-    )
+    existing = db.session.execute(
+        select(EmployeeDepartment.id).where(
+            EmployeeDepartment.employee_id == employee_id,
+            EmployeeDepartment.department_id == department_id,
+        )
+    ).first()
 
-    existing_assignment = cursor.fetchone()
-
-    if existing_assignment:
-        connection.close()
+    if existing:
         return None
 
-    cursor.execute(
-        """
-        INSERT INTO employee_departments (
-            employee_id,
-            department_id,
-            weekly_hours
-        )
-        VALUES (?, ?, ?)
-        """,
-        (
-            employee_id,
-            department_id,
-            weekly_hours,
-        ),
+    assignment = EmployeeDepartment(
+        employee_id=employee_id,
+        department_id=department_id,
+        weekly_hours=weekly_hours,
     )
 
-    connection.commit()
-    assignment_id = cursor.lastrowid
-    connection.close()
+    db.session.add(assignment)
+    db.session.commit()
 
-    return assignment_id
+    return assignment.id
 
 
 def get_employee_departments(employee_id):
     """Načíta oddelenia konkrétneho zamestnanca."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        SELECT
-            employee_departments.id,
-            departments.id,
-            departments.name,
-            employee_departments.weekly_hours
-        FROM employee_departments
-        JOIN departments
-            ON employee_departments.department_id = departments.id
-        WHERE employee_departments.employee_id = ?
-        ORDER BY departments.name
-        """,
-        (employee_id,),
+    query = (
+        select(
+            EmployeeDepartment.id,
+            Department.id,
+            Department.name,
+            EmployeeDepartment.weekly_hours,
+        )
+        .join(Department, EmployeeDepartment.department_id == Department.id)
+        .where(EmployeeDepartment.employee_id == employee_id)
+        .order_by(Department.name)
     )
 
-    assignments = cursor.fetchall()
-    connection.close()
-
-    return assignments
+    return db.session.execute(query).all()
 
 
 def get_employee_department_ids(employee_id):
     """Vráti množinu ID oddelení, ku ktorým je zamestnanec priradený."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    employee = db.session.get(Employee, employee_id)
 
-    cursor.execute(
-        """
-        SELECT department_id
-        FROM employee_departments
-        WHERE employee_id = ?
-        """,
-        (employee_id,),
-    )
+    if employee is None:
+        return set()
 
-    department_ids = {row[0] for row in cursor.fetchall()}
-    connection.close()
-
-    return department_ids
+    return {department.id for department in employee.departments}
 
 
 def get_employee_department(assignment_id):
     """Načíta jedno priradenie."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    query = select(
+        EmployeeDepartment.id,
+        EmployeeDepartment.employee_id,
+        EmployeeDepartment.department_id,
+        EmployeeDepartment.weekly_hours,
+    ).where(EmployeeDepartment.id == assignment_id)
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            employee_id,
-            department_id,
-            weekly_hours
-        FROM employee_departments
-        WHERE id = ?
-        """,
-        (assignment_id,),
-    )
-
-    assignment = cursor.fetchone()
-    connection.close()
-
-    return assignment
+    return db.session.execute(query).first()
 
 
-def update_employee_department(
-    assignment_id,
-    department_id,
-    weekly_hours,
-):
+def update_employee_department(assignment_id, department_id, weekly_hours):
     """Upraví priradenie zamestnanca."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    assignment = db.session.get(EmployeeDepartment, assignment_id)
 
-    cursor.execute(
-        """
-        UPDATE employee_departments
-        SET
-            department_id = ?,
-            weekly_hours = ?
-        WHERE id = ?
-        """,
-        (
-            department_id,
-            weekly_hours,
-            assignment_id,
-        ),
-    )
+    if assignment is None:
+        return
 
-    connection.commit()
-    connection.close()
+    assignment.department_id = department_id
+    assignment.weekly_hours = weekly_hours
+
+    db.session.commit()
 
 
 def delete_employee_department(assignment_id):
     """Odstráni priradenie zamestnanca k oddeleniu."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    assignment = db.session.get(EmployeeDepartment, assignment_id)
 
-    cursor.execute(
-        """
-        DELETE FROM employee_departments
-        WHERE id = ?
-        """,
-        (assignment_id,),
-    )
+    if assignment is None:
+        return
 
-    connection.commit()
-    connection.close()
+    db.session.delete(assignment)
+    db.session.commit()
 
 
 def get_employee_department_hours(employee_id):
     """Vráti celkový počet hodín podľa oddelení."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    query = select(
+        func.coalesce(func.sum(EmployeeDepartment.weekly_hours), 0)
+    ).where(EmployeeDepartment.employee_id == employee_id)
 
-    cursor.execute(
-        """
-        SELECT
-            COALESCE(
-                SUM(weekly_hours),
-                0
-            )
-        FROM employee_departments
-        WHERE employee_id = ?
-        """,
-        (employee_id,),
-    )
-
-    weekly_hours = cursor.fetchone()[0]
-    connection.close()
-
-    return weekly_hours
+    return db.session.execute(query).scalar()
 
 
-def can_add_employee_department(
-    employee_id,
-    weekly_hours,
-):
+def can_add_employee_department(employee_id, weekly_hours):
     """Overí, či nové priradenie neprekročí pracovný fond."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    employee = db.session.get(Employee, employee_id)
 
-    cursor.execute(
-        """
-        SELECT weekly_hours
-        FROM employees
-        WHERE id = ?
-        """,
-        (employee_id,),
-    )
-
-    employee = cursor.fetchone()
-
-    if employee is None or employee[0] is None:
-        connection.close()
+    if employee is None or employee.weekly_hours is None:
         return False
 
-    cursor.execute(
-        """
-        SELECT
-            COALESCE(
-                SUM(weekly_hours),
-                0
-            )
-        FROM employee_departments
-        WHERE employee_id = ?
-        """,
-        (employee_id,),
-    )
+    current_hours = get_employee_department_hours(employee_id)
 
-    current_hours = cursor.fetchone()[0]
-
-    connection.close()
-
-    return current_hours + float(weekly_hours) <= float(employee[0])
+    return current_hours + float(weekly_hours) <= float(employee.weekly_hours)
 
 
-def can_update_employee_department(
-    employee_id,
-    assignment_id,
-    weekly_hours,
-):
+def can_update_employee_department(employee_id, assignment_id, weekly_hours):
     """Overí, či úprava priradenia neprekročí pracovný fond."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    employee = db.session.get(Employee, employee_id)
 
-    cursor.execute(
-        """
-        SELECT weekly_hours
-        FROM employees
-        WHERE id = ?
-        """,
-        (employee_id,),
-    )
-
-    employee = cursor.fetchone()
-
-    if employee is None or employee[0] is None:
-        connection.close()
+    if employee is None or employee.weekly_hours is None:
         return False
 
-    cursor.execute(
-        """
-        SELECT
-            COALESCE(
-                SUM(weekly_hours),
-                0
-            )
-        FROM employee_departments
-        WHERE employee_id = ?
-          AND id != ?
-        """,
-        (
-            employee_id,
-            assignment_id,
-        ),
+    query = select(
+        func.coalesce(func.sum(EmployeeDepartment.weekly_hours), 0)
+    ).where(
+        EmployeeDepartment.employee_id == employee_id,
+        EmployeeDepartment.id != assignment_id,
     )
 
-    other_hours = cursor.fetchone()[0]
+    other_hours = db.session.execute(query).scalar()
 
-    connection.close()
-
-    return other_hours + float(weekly_hours) <= float(employee[0])
+    return other_hours + float(weekly_hours) <= float(employee.weekly_hours)

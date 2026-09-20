@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Upraviť absenciu - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Upraviť absenciu</h1>
+
+        <p>
+            Dovolenka, PN, OČR alebo náhradné voľno
+        </p>
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <form method="post">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
+        <div class="form-group">
+
+            <label for="employee_id">
+                Zamestnanec
+            </label>
+
+            <select
+                id="employee_id"
+                name="employee_id"
+                required
+            >
+
+                <option value="">
+                    -- Vyber zamestnanca --
+                </option>
+
+                {% for employee in employees %}
+
+                    {% if employee[5] or employee[0] == absence[1] %}
+
+                        <option
+                            value="{{ employee[0] }}"
+                            {% if (form.employee_id.data if form.employee_id.data is not none else absence[1]) == employee[0] %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ employee[1] }} {{ employee[2] }}
+                            — {{ employee[3] }}
+                        </option>
+
+                    {% endif %}
+
+                {% endfor %}
+
+            </select>
+
+            {% for error in form.employee_id.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="absence_type">
+                Typ neprítomnosti
+            </label>
+
+            <select
+                id="absence_type"
+                name="absence_type"
+                required
+            >
+
+                {% for value, label in form.absence_type.choices %}
+
+                    <option
+                        value="{{ value }}"
+                        {% if form.absence_type.data == value %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ label }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+            {% for error in form.absence_type.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="start_date">
+                Od
+            </label>
+
+            <input
+                type="date"
+                id="start_date"
+                name="start_date"
+                value="{{ form.start_date.data.isoformat() if form.start_date.data else '' }}"
+                required
+            >
+
+            {% for error in form.start_date.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="end_date">
+                Do
+            </label>
+
+            <input
+                type="date"
+                id="end_date"
+                name="end_date"
+                value="{{ form.end_date.data.isoformat() if form.end_date.data else '' }}"
+                required
+            >
+
+            {% for error in form.end_date.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="note">
+                Poznámka
+            </label>
+
+            <input
+                type="text"
+                id="note"
+                name="note"
+                value="{{ form.note.data or '' }}"
+                placeholder="Nepovinné"
+            >
+
+            {% for error in form.note.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
+                Uložiť zmeny
+            </button>
+
+            <a
+                href="/absences"
+                class="btn btn-secondary"
+            >
+                Zrušiť
+            </a>
+
+        </div>
+
+    </form>
+
+</div>
+
+
+<div style="margin-top: 20px;">
+
+    <a
+        href="/absences"
+        class="btn btn-secondary"
+    >
+        ← Späť na absencie
+    </a>
+
+</div>
+
+{% endblock %}

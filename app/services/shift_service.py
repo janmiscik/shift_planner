@@ -15,9 +15,13 @@ Nočné smeny (napr. 22:00 - 06:00): ak je čas konca menší alebo rovný
 dňa. Smena je v databáze evidovaná pod dátumom svojho ZAČIATKU.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-from app.data.database import get_connection
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import select
+
+from app.extensions import db
+from app.orm_models import Department, Employee, Shift
 
 
 def _to_minutes(time_str):
@@ -36,11 +40,6 @@ def shift_duration_hours(start_time, end_time):
         _to_minutes(end_time) - _to_minutes(start_time)
     ) % (24 * 60)
 
-    if duration_minutes == 0:
-        # Rovnaký začiatok aj koniec - v praxi neplatný vstup, ktorý
-        # odchytáva validate_shift(); tu sa netreba správať ako 24 h.
-        duration_minutes = 0
-
     return duration_minutes / 60
 
 
@@ -53,7 +52,9 @@ def _shift_datetime_range(shift_date, start_time, end_time):
 
     base_date = datetime.strptime(shift_date, "%Y-%m-%d")
 
-    start_hour, start_minute = (int(part) for part in start_time.split(":")[:2])
+    start_hour, start_minute = (
+        int(part) for part in start_time.split(":")[:2]
+    )
     end_hour, end_minute = (int(part) for part in end_time.split(":")[:2])
 
     start_dt = base_date.replace(hour=start_hour, minute=start_minute)
@@ -98,25 +99,17 @@ def has_shift_collision(
     window_start = (new_start - timedelta(days=1)).date().isoformat()
     window_end = (new_end + timedelta(days=1)).date().isoformat()
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    query = """
-        SELECT id, shift_date, start_time, end_time
-        FROM shifts
-        WHERE employee_id = ?
-          AND shift_date BETWEEN ? AND ?
-    """
-
-    params = [employee_id, window_start, window_end]
+    query = select(
+        Shift.id, Shift.shift_date, Shift.start_time, Shift.end_time
+    ).where(
+        Shift.employee_id == employee_id,
+        Shift.shift_date.between(window_start, window_end),
+    )
 
     if exclude_shift_id is not None:
-        query += " AND id != ?"
-        params.append(exclude_shift_id)
+        query = query.where(Shift.id != exclude_shift_id)
 
-    cursor.execute(query, tuple(params))
-    rows = cursor.fetchall()
-    connection.close()
+    rows = db.session.execute(query).all()
 
     for row in rows:
         existing_start, existing_end = _shift_datetime_range(
@@ -138,30 +131,17 @@ def get_scheduled_hours_in_week(
 
     monday, sunday = week_bounds(shift_date)
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    query = """
-        SELECT start_time, end_time
-        FROM shifts
-        WHERE employee_id = ?
-          AND shift_date BETWEEN ? AND ?
-    """
-
-    params = [employee_id, monday, sunday]
+    query = select(Shift.start_time, Shift.end_time).where(
+        Shift.employee_id == employee_id,
+        Shift.shift_date.between(monday, sunday),
+    )
 
     if exclude_shift_id is not None:
-        query += " AND id != ?"
-        params.append(exclude_shift_id)
+        query = query.where(Shift.id != exclude_shift_id)
 
-    cursor.execute(query, tuple(params))
-    rows = cursor.fetchall()
-    connection.close()
+    rows = db.session.execute(query).all()
 
-    return sum(
-        shift_duration_hours(row[0], row[1])
-        for row in rows
-    )
+    return sum(shift_duration_hours(row[0], row[1]) for row in rows)
 
 
 def get_employee_weekly_hours_status(employee_id, shift_date):
@@ -220,6 +200,7 @@ def validate_shift(
     from app.services.employee_department_service import (
         get_employee_department_ids,
     )
+    from app.services.absence_service import get_employee_absence_on_date
 
     errors = []
 
@@ -239,6 +220,14 @@ def validate_shift(
     ):
         errors.append(
             "Zamestnanec už má v tomto čase inú smenu."
+        )
+
+    absence = get_employee_absence_on_date(employee_id, shift_date)
+
+    if absence is not None:
+        errors.append(
+            f"Zamestnanec má na tento deň schválenú neprítomnosť "
+            f"({absence[1]})."
         )
 
     employee = get_employee(employee_id)
@@ -283,40 +272,32 @@ def remove_duplicate_shifts():
     každom spustení).
     """
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    query = select(
+        Shift.id,
+        Shift.employee_id,
+        Shift.shift_date,
+        Shift.start_time,
+        Shift.end_time,
+        Shift.shift_type,
+    ).order_by(Shift.id)
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            employee_id,
-            shift_date,
-            start_time,
-            end_time,
-            shift_type
-        FROM shifts
-        ORDER BY id
-        """
-    )
+    rows = db.session.execute(query).all()
 
     seen = {}
     duplicate_ids = []
 
-    for row in cursor.fetchall():
+    for row in rows:
         shift_id = row[0]
-        key = row[1:]
+        key = tuple(row[1:])
 
         if key in seen:
             duplicate_ids.append(shift_id)
         else:
             seen[key] = shift_id
 
-    for shift_id in duplicate_ids:
-        cursor.execute("DELETE FROM shifts WHERE id = ?", (shift_id,))
-
-    connection.commit()
-    connection.close()
+    if duplicate_ids:
+        db.session.execute(sa_delete(Shift).where(Shift.id.in_(duplicate_ids)))
+        db.session.commit()
 
     return duplicate_ids
 
@@ -330,27 +311,21 @@ def find_overlapping_shifts():
     rozhodnúť, ktorú smenu ponechať (zmazať vieš cez /shifts v appke).
     """
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        SELECT
-            shifts.id,
-            employees.first_name,
-            employees.last_name,
-            shifts.employee_id,
-            shifts.shift_date,
-            shifts.start_time,
-            shifts.end_time
-        FROM shifts
-        JOIN employees ON shifts.employee_id = employees.id
-        ORDER BY shifts.employee_id, shifts.shift_date, shifts.start_time
-        """
+    query = (
+        select(
+            Shift.id,
+            Employee.first_name,
+            Employee.last_name,
+            Shift.employee_id,
+            Shift.shift_date,
+            Shift.start_time,
+            Shift.end_time,
+        )
+        .join(Employee, Shift.employee_id == Employee.id)
+        .order_by(Shift.employee_id, Shift.shift_date, Shift.start_time)
     )
 
-    rows = cursor.fetchall()
-    connection.close()
+    rows = db.session.execute(query).all()
 
     conflicts = []
 
@@ -384,127 +359,82 @@ def add_shift(
 ):
     """Pridá smenu konkrétnemu zamestnancovi."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        INSERT INTO shifts (
-            employee_id,
-            shift_date,
-            start_time,
-            end_time,
-            shift_type,
-            department_id,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-        """,
-        (
-            employee_id,
-            shift_date,
-            start_time,
-            end_time,
-            shift_type,
-            department_id or None,
-        ),
+    shift = Shift(
+        employee_id=employee_id,
+        shift_date=shift_date,
+        start_time=start_time,
+        end_time=end_time,
+        shift_type=shift_type,
+        department_id=department_id or None,
+        created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     )
 
-    connection.commit()
-    shift_id = cursor.lastrowid
-    connection.close()
+    db.session.add(shift)
+    db.session.commit()
 
-    return shift_id
+    return shift.id
 
 
-def _shift_select(where_clause="", order_clause=""):
-    return f"""
-        SELECT
-            shifts.id,
-            employees.first_name,
-            employees.last_name,
-            shifts.shift_date,
-            shifts.start_time,
-            shifts.end_time,
-            shifts.shift_type,
-            shifts.employee_id,
-            shifts.department_id,
-            departments.name,
-            shifts.created_at
-        FROM shifts
-        JOIN employees
-            ON shifts.employee_id = employees.id
-        LEFT JOIN departments
-            ON shifts.department_id = departments.id
-        {where_clause}
-        {order_clause}
-    """
+def _shift_columns():
+    return (
+        Shift.id,
+        Employee.first_name,
+        Employee.last_name,
+        Shift.shift_date,
+        Shift.start_time,
+        Shift.end_time,
+        Shift.shift_type,
+        Shift.employee_id,
+        Shift.department_id,
+        Department.name,
+        Shift.created_at,
+    )
+
+
+def _shift_base_query():
+    return (
+        select(*_shift_columns())
+        .join(Employee, Shift.employee_id == Employee.id)
+        .outerjoin(Department, Shift.department_id == Department.id)
+    )
 
 
 def get_shifts():
     """Načíta všetky smeny spolu so zamestnancom a oddelením."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute(
-        _shift_select(
-            order_clause="ORDER BY shifts.shift_date, shifts.start_time"
-        )
+    query = _shift_base_query().order_by(
+        Shift.shift_date, Shift.start_time
     )
 
-    shifts = cursor.fetchall()
-    connection.close()
-
-    return shifts
+    return db.session.execute(query).all()
 
 
 def get_shifts_in_range(start_date, end_date):
     """Načíta smeny v danom dátumovom rozsahu (vrátane)."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute(
-        _shift_select(
-            where_clause="WHERE shifts.shift_date BETWEEN ? AND ?",
-            order_clause="ORDER BY shifts.shift_date, shifts.start_time",
-        ),
-        (start_date, end_date),
+    query = (
+        _shift_base_query()
+        .where(Shift.shift_date.between(start_date, end_date))
+        .order_by(Shift.shift_date, Shift.start_time)
     )
 
-    shifts = cursor.fetchall()
-    connection.close()
-
-    return shifts
+    return db.session.execute(query).all()
 
 
 def get_shift(shift_id):
     """Načíta jednu konkrétnu smenu."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    query = select(
+        Shift.id,
+        Shift.employee_id,
+        Shift.shift_date,
+        Shift.start_time,
+        Shift.end_time,
+        Shift.shift_type,
+        Shift.department_id,
+    ).where(Shift.id == shift_id)
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            employee_id,
-            shift_date,
-            start_time,
-            end_time,
-            shift_type,
-            department_id
-        FROM shifts
-        WHERE id = ?
-        """,
-        (shift_id,),
-    )
-
-    shift = cursor.fetchone()
-    connection.close()
-
-    return shift
+    return db.session.execute(query).first()
 
 
 def update_shift(
@@ -518,68 +448,46 @@ def update_shift(
 ):
     """Upraví existujúcu smenu."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    shift = db.session.get(Shift, shift_id)
 
-    cursor.execute(
-        """
-        UPDATE shifts
-        SET
-            employee_id = ?,
-            shift_date = ?,
-            start_time = ?,
-            end_time = ?,
-            shift_type = ?,
-            department_id = ?
-        WHERE id = ?
-        """,
-        (
-            employee_id,
-            shift_date,
-            start_time,
-            end_time,
-            shift_type,
-            department_id or None,
-            shift_id,
-        ),
-    )
+    if shift is None:
+        return
 
-    connection.commit()
-    connection.close()
+    shift.employee_id = employee_id
+    shift.shift_date = shift_date
+    shift.start_time = start_time
+    shift.end_time = end_time
+    shift.shift_type = shift_type
+    shift.department_id = department_id or None
+
+    db.session.commit()
 
 
 def move_shift(shift_id, shift_date, start_time, end_time):
     """Presunie smenu na iný dátum/čas (napr. drag-and-drop v kalendári)."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    shift = db.session.get(Shift, shift_id)
 
-    cursor.execute(
-        """
-        UPDATE shifts
-        SET shift_date = ?, start_time = ?, end_time = ?
-        WHERE id = ?
-        """,
-        (shift_date, start_time, end_time, shift_id),
-    )
+    if shift is None:
+        return
 
-    connection.commit()
-    connection.close()
+    shift.shift_date = shift_date
+    shift.start_time = start_time
+    shift.end_time = end_time
+
+    db.session.commit()
 
 
 def delete_shift(shift_id):
     """Vymaže existujúcu smenu."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    shift = db.session.get(Shift, shift_id)
 
-    cursor.execute(
-        "DELETE FROM shifts WHERE id = ?",
-        (shift_id,),
-    )
+    if shift is None:
+        return
 
-    connection.commit()
-    connection.close()
+    db.session.delete(shift)
+    db.session.commit()
 
 
 def filter_shifts_by_department(shifts, department_id):
@@ -636,13 +544,10 @@ def backfill_shift_departments():
         get_employee_department_ids,
     )
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute(
-        "SELECT id, employee_id FROM shifts WHERE department_id IS NULL"
+    query = select(Shift.id, Shift.employee_id).where(
+        Shift.department_id.is_(None)
     )
-    rows = cursor.fetchall()
+    rows = db.session.execute(query).all()
 
     department_ids_cache = {}
     updated = 0
@@ -659,17 +564,14 @@ def backfill_shift_departments():
         if len(department_ids) == 1:
             department_id = next(iter(department_ids))
 
-            cursor.execute(
-                "UPDATE shifts SET department_id = ? WHERE id = ?",
-                (department_id, shift_id),
-            )
+            shift = db.session.get(Shift, shift_id)
+            shift.department_id = department_id
 
             updated += 1
         else:
             skipped += 1
 
-    connection.commit()
-    connection.close()
+    db.session.commit()
 
     return updated, skipped
 
@@ -677,18 +579,10 @@ def backfill_shift_departments():
 def get_shifts_by_employee(employee_id):
     """Načíta smeny konkrétneho zamestnanca."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute(
-        _shift_select(
-            where_clause="WHERE shifts.employee_id = ?",
-            order_clause="ORDER BY shifts.shift_date, shifts.start_time",
-        ),
-        (employee_id,),
+    query = (
+        _shift_base_query()
+        .where(Shift.employee_id == employee_id)
+        .order_by(Shift.shift_date, Shift.start_time)
     )
 
-    shifts = cursor.fetchall()
-    connection.close()
-
-    return shifts
+    return db.session.execute(query).all()

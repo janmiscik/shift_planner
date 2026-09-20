@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Absencie - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Absencie</h1>
+
+        <p>
+            Dovolenky, PN, OČR a náhradné voľno zamestnancov
+        </p>
+    </div>
+
+    <a class="btn" href="/absences/add">
+        + Pridať absenciu
+    </a>
+
+</div>
+
+
+<div class="calendar-filter">
+
+    <form method="GET" action="/absences">
+
+        <label for="employee_id">
+            Zamestnanec
+        </label>
+
+        <select
+            id="employee_id"
+            name="employee_id"
+            onchange="this.form.submit()"
+        >
+
+            <option value="">
+                Všetci zamestnanci
+            </option>
+
+            {% for employee in employees %}
+
+                <option
+                    value="{{ employee[0] }}"
+                    {% if selected_employee_id == employee[0] %}
+                        selected
+                    {% endif %}
+                >
+                    {{ employee[1] }} {{ employee[2] }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+    </form>
+
+</div>
+
+
+<div class="card">
+
+    {% if absences %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Zamestnanec</th>
+                    <th>Typ</th>
+                    <th>Od</th>
+                    <th>Do</th>
+                    <th>Poznámka</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for absence in absences %}
+
+                    <tr>
+
+                        <td>
+                            <strong>
+                                {{ absence[1] }} {{ absence[2] }}
+                            </strong>
+                        </td>
+
+                        <td>
+                            <span class="status-inactive">
+                                {{ absence[4] }}
+                            </span>
+                        </td>
+
+                        <td>
+                            {{ absence[5] }}
+                        </td>
+
+                        <td>
+                            {{ absence[6] }}
+                        </td>
+
+                        <td>
+                            {{ absence[7] or "—" }}
+                        </td>
+
+                        <td class="actions">
+
+                            <a
+                                class="btn btn-small"
+                                href="/absences/edit/{{ absence[0] }}"
+                            >
+                                ✏️ Upraviť
+                            </a>
+
+                            <form
+                                method="POST"
+                                action="/absences/delete/{{ absence[0] }}"
+                                onsubmit="return confirm('Naozaj chceš túto absenciu zmazať?');"
+                            >
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-delete btn-small"
+                                >
+                                    🗑️ Zmazať
+                                </button>
+
+                            </form>
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+
+            <p>
+                Žiadne absencie.
+            </p>
+
+            <a class="btn" href="/absences/add">
+                Pridať prvú absenciu
+            </a>
+
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

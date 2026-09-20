@@ -47,6 +47,33 @@
         </div>
 
 
+        <div class="form-group">
+
+            <label for="min_staff">
+                Minimálny počet ľudí na zmene
+            </label>
+
+            <input
+                type="number"
+                id="min_staff"
+                name="min_staff"
+                value="{{ form.min_staff.data if form.min_staff.data is not none else '' }}"
+                min="1"
+                placeholder="Nepovinné - napr. 3"
+            >
+
+            <small>
+                Ak vyplníš, appka v kalendári upozorní, keď na smene
+                v tomto oddelení chýbajú ľudia.
+            </small>
+
+            {% for error in form.min_staff.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
         <div class="actions">
 
             <button type="submit">

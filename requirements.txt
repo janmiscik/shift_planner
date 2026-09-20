@@ -1,6 +1,8 @@
 Flask==3.0.3
 Flask-WTF==1.2.1
 WTForms==3.1.2
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
 openpyxl==3.1.5
 reportlab==4.2.5
 python-dotenv==1.0.1

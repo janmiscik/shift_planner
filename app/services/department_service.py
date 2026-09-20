@@ -1,31 +1,26 @@
 """Služby pre prácu s oddeleniami."""
 
-from app.data.database import get_connection
+from sqlalchemy import func, select
+
+from app.extensions import db
+from app.orm_models import Department
 
 
 def department_name_exists(name, exclude_department_id=None):
     """Overí, či už existuje oddelenie s daným názvom (bez ohľadu na
     veľkosť písmen)."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    query = "SELECT id FROM departments WHERE LOWER(name) = LOWER(?)"
-    params = [name]
+    query = select(Department.id).where(
+        func.lower(Department.name) == func.lower(name)
+    )
 
     if exclude_department_id is not None:
-        query += " AND id != ?"
-        params.append(exclude_department_id)
+        query = query.where(Department.id != exclude_department_id)
 
-    cursor.execute(query, tuple(params))
-    exists = cursor.fetchone() is not None
-
-    connection.close()
-
-    return exists
+    return db.session.execute(query).first() is not None
 
 
-def add_department(name):
+def add_department(name, min_staff=None):
     """Pridá nové oddelenie.
 
     Vráti ``None``, ak už oddelenie s týmto názvom existuje (namiesto
@@ -35,73 +30,42 @@ def add_department(name):
     if department_name_exists(name):
         return None
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    department = Department(name=name, min_staff=min_staff)
 
-    cursor.execute(
-        """
-        INSERT INTO departments (name)
-        VALUES (?)
-        """,
-        (name,),
-    )
+    db.session.add(department)
+    db.session.commit()
 
-    connection.commit()
-    department_id = cursor.lastrowid
-    connection.close()
-
-    return department_id
+    return department.id
 
 
 def get_departments():
     """Načíta všetky oddelenia."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    query = select(
+        Department.id,
+        Department.name,
+        Department.active,
+        Department.min_staff,
+    ).order_by(Department.name)
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            name,
-            active
-        FROM departments
-        ORDER BY name
-        """
-    )
-
-    departments = cursor.fetchall()
-    connection.close()
-
-    return departments
+    return db.session.execute(query).all()
 
 
 def get_department(department_id):
     """Načíta jedno oddelenie."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    query = select(
+        Department.id,
+        Department.name,
+        Department.active,
+        Department.min_staff,
+    ).where(Department.id == department_id)
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            name,
-            active
-        FROM departments
-        WHERE id = ?
-        """,
-        (department_id,),
-    )
-
-    department = cursor.fetchone()
-    connection.close()
-
-    return department
+    return db.session.execute(query).first()
 
 
-def update_department(department_id, name):
-    """Upraví názov oddelenia.
+def update_department(department_id, name, min_staff=None):
+    """Upraví názov a minimálny počet ľudí na zmene pre oddelenie.
 
     Vráti ``False``, ak už iné oddelenie s týmto názvom existuje.
     """
@@ -109,23 +73,15 @@ def update_department(department_id, name):
     if department_name_exists(name, exclude_department_id=department_id):
         return False
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    department = db.session.get(Department, department_id)
 
-    cursor.execute(
-        """
-        UPDATE departments
-        SET name = ?
-        WHERE id = ?
-        """,
-        (
-            name,
-            department_id,
-        ),
-    )
+    if department is None:
+        return False
 
-    connection.commit()
-    connection.close()
+    department.name = name
+    department.min_staff = min_staff
+
+    db.session.commit()
 
     return True
 
@@ -133,20 +89,11 @@ def update_department(department_id, name):
 def set_department_active(department_id, active):
     """Aktivuje alebo deaktivuje oddelenie."""
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    department = db.session.get(Department, department_id)
 
-    cursor.execute(
-        """
-        UPDATE departments
-        SET active = ?
-        WHERE id = ?
-        """,
-        (
-            active,
-            department_id,
-        ),
-    )
+    if department is None:
+        return
 
-    connection.commit()
-    connection.close()
+    department.active = active
+
+    db.session.commit()
