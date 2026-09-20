@@ -136,6 +136,33 @@ flask db migrate -m "popis zmeny"
 python manage.py migrate
 ```
 
+## Zákonník práce - odpočinok a strop hodín
+
+Pri ukladaní smeny sa navyše kontroluje:
+
+- **minimálny odpočinok medzi dvomi po sebe idúcimi smenami** -
+  predvolene 12 hodín (Zákonník práce § 92). Dá sa zmeniť cez
+  premennú prostredia `MIN_REST_HOURS` (napr. na 11, ak to vyhovuje
+  vašej prevádzke/dohode),
+- **zákonný strop týždenného pracovného času vrátane nadčasov** -
+  predvolene 48 hodín (Zákonník práce § 97), nastaviteľné cez
+  `MAX_WEEKLY_HOURS_WITH_OVERTIME`. Tento strop platí VŽDY, aj keď
+  má zamestnanec v profile nastavený vyšší osobný fond hodín.
+
+Obe hodnoty nastavíš v súbore `.env`:
+
+```
+MIN_REST_HOURS=12
+MAX_WEEKLY_HOURS_WITH_OVERTIME=48
+```
+
+## Export smien konkrétneho zamestnanca (.ics)
+
+Na stránke úpravy zamestnanca (`/employees/edit/<id>`) je tlačidlo
+"⬇ Export jeho zmien (.ics)" - stiahne len smeny TOHTO zamestnanca
+vo formáte, ktorý sa dá priamo naimportovať/prihlásiť na odber v
+Google Kalendári, Outlooku alebo Apple Kalendári.
+
 ## Zálohovanie databázy
 
 **Nikdy nemaž celý priečinok projektu, ak v ňom máš aj

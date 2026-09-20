@@ -5,16 +5,22 @@ uložením smeny (``validate_shift``):
   - začiatok a koniec smeny sa nesmú zhodovať,
   - smena sa nesmie prekrývať s inou smenou toho istého zamestnanca
     (vrátane nočných smien, ktoré prechádzajú cez polnoc),
+  - medzi dvomi po sebe idúcimi smenami musí byť minimálny odpočinok
+    (``MIN_REST_HOURS``, Zákonník práce),
   - súčet hodín v danom kalendárnom týždni nesmie prekročiť
     zamestnancov týždenný pracovný fond (``employees.weekly_hours``),
+  - súčet hodín v týždni nesmie prekročiť zákonný strop vrátane
+    nadčasov (``MAX_WEEKLY_HOURS_WITH_OVERTIME``, Zákonník práce),
   - zamestnanca je možné priradiť len na oddelenie, ku ktorému má
-    aktívnu väzbu (``employee_departments``).
+    aktívnu väzbu (``employee_departments``),
+  - zohľadňujú sa schválené absencie.
 
 Nočné smeny (napr. 22:00 - 06:00): ak je čas konca menší alebo rovný
 času začiatku, smena sa považuje za prechádzajúcu do nasledujúceho
 dňa. Smena je v databáze evidovaná pod dátumom svojho ZAČIATKU.
 """
 
+import os
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete as sa_delete
@@ -22,6 +28,19 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.orm_models import Department, Employee, Shift
+
+# Minimálny odpočinok medzi dvomi po sebe idúcimi smenami (hodiny).
+# Zákonník práce (§ 92) vyžaduje spravidla 12 hodín nepretržitého
+# odpočinku počas 24 hodín (v niektorých prevádzkach/dohodou možno
+# skrátiť až na 8 h s náhradným odpočinkom) - preto je to
+# nastaviteľné cez premennú prostredia, predvolene 12.
+MIN_REST_HOURS = float(os.environ.get("MIN_REST_HOURS", 12))
+
+# Zákonný strop týždenného pracovného času vrátane nadčasov
+# (Zákonník práce § 97 - priemerne 48 h týždenne).
+MAX_WEEKLY_HOURS_WITH_OVERTIME = float(
+    os.environ.get("MAX_WEEKLY_HOURS_WITH_OVERTIME", 48)
+)
 
 
 def _to_minutes(time_str):
@@ -120,6 +139,63 @@ def has_shift_collision(
             return True
 
     return False
+
+
+def get_adjacent_shift_gaps(
+    employee_id,
+    shift_date,
+    start_time,
+    end_time,
+    exclude_shift_id=None,
+):
+    """Vráti (odpočinok_pred, odpočinok_po) v hodinách - medzeru medzi
+    touto smenou a najbližšou predchádzajúcou/nasledujúcou smenou
+    toho istého zamestnanca.
+
+    Pre stranu, kde žiadna susedná smena nie je (napr. úplne prvá
+    naplánovaná smena), vráti na danej pozícii ``None``.
+    """
+
+    new_start, new_end = _shift_datetime_range(
+        shift_date, start_time, end_time
+    )
+
+    window_start = (new_start - timedelta(days=3)).date().isoformat()
+    window_end = (new_end + timedelta(days=3)).date().isoformat()
+
+    query = select(
+        Shift.id, Shift.shift_date, Shift.start_time, Shift.end_time
+    ).where(
+        Shift.employee_id == employee_id,
+        Shift.shift_date.between(window_start, window_end),
+    )
+
+    if exclude_shift_id is not None:
+        query = query.where(Shift.id != exclude_shift_id)
+
+    rows = db.session.execute(query).all()
+
+    rest_before = None
+    rest_after = None
+
+    for row in rows:
+        existing_start, existing_end = _shift_datetime_range(
+            row[1], row[2], row[3]
+        )
+
+        if existing_end <= new_start:
+            gap = (new_start - existing_end).total_seconds() / 3600
+
+            if rest_before is None or gap < rest_before:
+                rest_before = gap
+
+        elif existing_start >= new_end:
+            gap = (existing_start - new_end).total_seconds() / 3600
+
+            if rest_after is None or gap < rest_after:
+                rest_after = gap
+
+    return rest_before, rest_after
 
 
 def get_scheduled_hours_in_week(
@@ -222,6 +298,28 @@ def validate_shift(
             "Zamestnanec už má v tomto čase inú smenu."
         )
 
+    rest_before, rest_after = get_adjacent_shift_gaps(
+        employee_id,
+        shift_date,
+        start_time,
+        end_time,
+        exclude_shift_id=exclude_shift_id,
+    )
+
+    if rest_before is not None and rest_before < MIN_REST_HOURS:
+        errors.append(
+            f"Medzi touto a predchádzajúcou smenou zamestnanca je len "
+            f"{rest_before:.1f} h odpočinku (Zákonník práce vyžaduje "
+            f"aspoň {MIN_REST_HOURS:.0f} h)."
+        )
+
+    if rest_after is not None and rest_after < MIN_REST_HOURS:
+        errors.append(
+            f"Medzi touto a nasledujúcou smenou zamestnanca je len "
+            f"{rest_after:.1f} h odpočinku (Zákonník práce vyžaduje "
+            f"aspoň {MIN_REST_HOURS:.0f} h)."
+        )
+
     absence = get_employee_absence_on_date(employee_id, shift_date)
 
     if absence is not None:
@@ -232,16 +330,15 @@ def validate_shift(
 
     employee = get_employee(employee_id)
 
+    new_duration = shift_duration_hours(start_time, end_time)
+    already_scheduled = get_scheduled_hours_in_week(
+        employee_id,
+        shift_date,
+        exclude_shift_id=exclude_shift_id,
+    )
+
     if employee is not None and employee[4] is not None:
         weekly_limit = float(employee[4])
-
-        already_scheduled = get_scheduled_hours_in_week(
-            employee_id,
-            shift_date,
-            exclude_shift_id=exclude_shift_id,
-        )
-
-        new_duration = shift_duration_hours(start_time, end_time)
 
         if already_scheduled + new_duration > weekly_limit:
             errors.append(
@@ -249,6 +346,14 @@ def validate_shift(
                 f"({already_scheduled + new_duration:.1f} h "
                 f"z {weekly_limit:.1f} h)."
             )
+
+    if already_scheduled + new_duration > MAX_WEEKLY_HOURS_WITH_OVERTIME:
+        errors.append(
+            "Smena prekračuje zákonný strop týždenného pracovného "
+            "času vrátane nadčasov podľa Zákonníka práce "
+            f"({already_scheduled + new_duration:.1f} h "
+            f"z max. {MAX_WEEKLY_HOURS_WITH_OVERTIME:.0f} h)."
+        )
 
     if department_id:
         allowed_department_ids = get_employee_department_ids(

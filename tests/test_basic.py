@@ -1264,6 +1264,162 @@ def test_admin_backup_route_downloads_database(client):
     assert response.data[:16] == b"SQLite format 3\x00"
 
 
+# ---------------------------------------------------------------------
+# Minimálny odpočinok medzi zmenami + zákonný strop 48h/týždeň
+# ---------------------------------------------------------------------
+
+def test_insufficient_rest_between_shifts_is_rejected(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Odpocinok",
+            "position": "Operátor",
+            "weekly_hours": "60",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-21",
+            "start_time": "14:00",
+            "end_time": "22:00",
+            "shift_type": "Poobedná",
+        },
+    )
+
+    # Ďalšia smena o 8 h neskôr (06:00 nasledujúci deň) - menej ako
+    # zákonom vyžadovaných 12 h odpočinku.
+    response = post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-22",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    from app.services.shift_service import get_shifts
+
+    assert len(get_shifts()) == 1
+    assert "odpočinku" in response.get_data(as_text=True)
+
+
+def test_exactly_minimum_rest_is_allowed(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Odpocinok",
+            "position": "Operátor",
+            "weekly_hours": "60",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-21",
+            "start_time": "14:00",
+            "end_time": "22:00",
+            "shift_type": "Poobedná",
+        },
+    )
+
+    # Presne 12 h odpočinku (22:00 -> 10:00 nasledujúci deň).
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-22",
+            "start_time": "10:00",
+            "end_time": "18:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    from app.services.shift_service import get_shifts
+
+    assert len(get_shifts()) == 2
+
+
+def test_statutory_48h_weekly_cap_overrides_higher_personal_fund(client):
+    from app.services.employee_service import get_employees
+
+    # Osobný fond 60h je vyšší ako zákonný strop - zákon má prednosť.
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Ján",
+            "last_name": "Nadcasar",
+            "position": "Operátor",
+            "weekly_hours": "60",
+        },
+    )
+    employee_id = get_employees()[0][0]
+
+    for shift_date in (
+        "2026-09-21",
+        "2026-09-22",
+        "2026-09-23",
+        "2026-09-24",
+    ):
+        post(
+            client,
+            "/shifts/add",
+            data={
+                "employee_id": str(employee_id),
+                "department_id": "",
+                "shift_date": shift_date,
+                "start_time": "06:00",
+                "end_time": "16:00",
+                "shift_type": "Ranná",
+            },
+        )
+
+    from app.services.shift_service import get_shifts
+
+    assert len(get_shifts()) == 4  # 40 h spolu
+
+    response = post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-25",
+            "start_time": "06:00",
+            "end_time": "16:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    assert len(get_shifts()) == 4
+    assert "zákonný strop" in response.get_data(as_text=True)
+
+
 def test_shift_delete(client):
     employee_id, department_id = _create_employee_with_department(client)
 
