@@ -11,13 +11,32 @@ from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Blueprint, Flask, flash, jsonify, redirect, render_template, request, send_file
+from flask import Blueprint, Flask, flash, jsonify, redirect, render_template, request, send_file, url_for
+from flask_login import (
+    current_user,
+    login_required,
+    login_user,
+    logout_user,
+)
 from flask_wtf import CSRFProtect
+from wtforms.validators import DataRequired, Length
 
 from app.data.database import DEFAULT_DATABASE_PATH
-from app.extensions import db, migrate
+from app.extensions import db, login_manager, migrate
 
 load_dotenv()
+
+from app.services.auth_service import (
+    create_employee_user,
+    delete_user,
+    get_user_by_employee_id,
+    get_user_by_id,
+    get_user_by_username,
+    set_password,
+    set_username,
+    username_exists,
+    verify_password,
+)
 
 from app.services.employee_service import (
     add_employee,
@@ -85,9 +104,11 @@ from app.services.capacity_service import get_understaffed_shifts
 
 from app.web.forms import (
     AbsenceForm,
+    CredentialsForm,
     DepartmentForm,
     EmployeeDepartmentForm,
     EmployeeForm,
+    LoginForm,
     ShiftForm,
 )
 
@@ -97,6 +118,42 @@ bp = Blueprint("main", __name__)
 csrf = CSRFProtect()
 
 _DEFAULT_SECRET_KEY = "dev-docasny-kluc-zmen-v-produkcii"
+
+# Routy dostupné bez prihlásenia (len prihlasovacia stránka a
+# statické súbory).
+_PUBLIC_ENDPOINTS = {"main.login_page", "static"}
+
+# Routy, na ktoré má prístup aj rola "employee" (len na čítanie
+# svojho vlastného rozpisu). Všetko ostatné je predvolene zakázané
+# pre túto rolu - nová routa sa musí explicitne pridať sem, aby k nej
+# mal zamestnanec prístup (bezpečnejšie ako opačný zoznam zákazov).
+_EMPLOYEE_ALLOWED_ENDPOINTS = {
+    "main.my_schedule",
+    "main.my_schedule_export_ics",
+    "main.logout_page",
+}
+
+
+@login_manager.user_loader
+def _load_user(user_id):
+    return get_user_by_id(user_id)
+
+
+@bp.before_request
+def _require_login():
+    if request.endpoint in _PUBLIC_ENDPOINTS:
+        return None
+
+    if not current_user.is_authenticated:
+        return redirect(url_for("main.login_page", next=request.path))
+
+    if (
+        current_user.role == "employee"
+        and request.endpoint not in _EMPLOYEE_ALLOWED_ENDPOINTS
+    ):
+        return render_template("forbidden.html"), 403
+
+    return None
 
 
 def _active_department_choices():
@@ -113,6 +170,77 @@ def _active_employee_choices():
         for employee in get_employees()
         if employee[5]
     ]
+
+
+@bp.route("/login", methods=["GET", "POST"])
+def login_page():
+    if current_user.is_authenticated:
+        if current_user.role == "employee":
+            return redirect("/my-schedule")
+
+        return redirect("/")
+
+    form = LoginForm()
+
+    if form.validate_on_submit():
+        user = get_user_by_username(form.username.data)
+
+        if user is None or not verify_password(user, form.password.data):
+            flash("Nesprávne používateľské meno alebo heslo.", "error")
+        else:
+            login_user(user)
+
+            if user.role == "employee":
+                return redirect("/my-schedule")
+
+            next_url = request.args.get("next")
+
+            return redirect(next_url or "/")
+
+    return render_template("login.html", form=form)
+
+
+@bp.route("/logout", methods=["POST"])
+def logout_page():
+    logout_user()
+
+    return redirect("/login")
+
+
+@bp.route("/my-schedule")
+def my_schedule():
+    if current_user.role != "employee" or current_user.employee_id is None:
+        return redirect("/")
+
+    employee = get_employee(current_user.employee_id)
+    shifts = get_shifts_by_employee(current_user.employee_id)
+    absences = get_absences_by_employee(current_user.employee_id)
+
+    return render_template(
+        "my_schedule.html",
+        employee=employee,
+        shifts=shifts,
+        absences=absences,
+    )
+
+
+@bp.route("/my-schedule/export.ics")
+def my_schedule_export_ics():
+    if current_user.role != "employee" or current_user.employee_id is None:
+        return redirect("/")
+
+    employee = get_employee(current_user.employee_id)
+    shifts = get_shifts_by_employee(current_user.employee_id)
+    calendar_name = f"Moje smeny - {employee[1]} {employee[2]}"
+
+    ics = build_shifts_ics(shifts, calendar_name=calendar_name)
+
+    return send_file(
+        ics,
+        as_attachment=True,
+        download_name=f"moje_smeny_{employee[1]}_{employee[2]}.ics",
+        mimetype="text/calendar",
+    )
 
 
 @bp.route("/")
@@ -166,18 +294,38 @@ def employees_page():
 @bp.route("/employees/add", methods=["GET", "POST"])
 def add_employee_page():
     form = EmployeeForm()
+    credentials_form = CredentialsForm(meta={"csrf": False})
+    credentials_form.password.validators = [
+        DataRequired(message="Zadaj heslo."),
+        Length(min=6, message="Heslo musí mať aspoň 6 znakov."),
+    ]
 
     if form.validate_on_submit():
-        add_employee(
-            form.first_name.data,
-            form.last_name.data,
-            form.position.data,
-            form.weekly_hours.data,
-        )
+        credentials_valid = credentials_form.validate()
 
-        return redirect("/employees")
+        if credentials_valid and username_exists(credentials_form.username.data):
+            flash("Toto používateľské meno už niekto používa.", "error")
+        elif credentials_valid:
+            employee_id = add_employee(
+                form.first_name.data,
+                form.last_name.data,
+                form.position.data,
+                form.weekly_hours.data,
+            )
 
-    return render_template("add_employee.html", form=form)
+            create_employee_user(
+                employee_id,
+                credentials_form.username.data,
+                credentials_form.password.data,
+            )
+
+            return redirect("/employees")
+
+    return render_template(
+        "add_employee.html",
+        form=form,
+        credentials_form=credentials_form,
+    )
 
 
 @bp.route("/employees/edit/<int:employee_id>", methods=["GET", "POST"])
@@ -197,6 +345,8 @@ def edit_employee_page(employee_id):
 
     assignments = get_employee_departments(employee_id)
     total_weekly_hours = get_employee_department_hours(employee_id)
+    employee_user = get_user_by_employee_id(employee_id)
+    credentials_form = CredentialsForm()
 
     if form.validate_on_submit():
         if form.weekly_hours.data < total_weekly_hours:
@@ -211,6 +361,8 @@ def edit_employee_page(employee_id):
                 employee=employee,
                 assignments=assignments,
                 total_weekly_hours=total_weekly_hours,
+                employee_user=employee_user,
+                credentials_form=credentials_form,
                 form=form,
             )
 
@@ -229,8 +381,99 @@ def edit_employee_page(employee_id):
         employee=employee,
         assignments=assignments,
         total_weekly_hours=total_weekly_hours,
+        employee_user=employee_user,
+        credentials_form=credentials_form,
         form=form,
     )
+
+
+@bp.route(
+    "/employees/<int:employee_id>/credentials/create",
+    methods=["POST"],
+)
+def create_employee_credentials_page(employee_id):
+    employee = get_employee(employee_id)
+
+    if employee is None:
+        return "Zamestnanec neexistuje.", 404
+
+    form = CredentialsForm()
+    form.password.validators = [
+        DataRequired(message="Zadaj heslo."),
+        Length(min=6, message="Heslo musí mať aspoň 6 znakov."),
+    ]
+
+    if form.validate_on_submit():
+        if username_exists(form.username.data):
+            flash("Toto používateľské meno už niekto používa.", "error")
+        else:
+            create_employee_user(
+                employee_id,
+                form.username.data,
+                form.password.data,
+            )
+
+            return redirect(f"/employees/edit/{employee_id}")
+
+    assignments = get_employee_departments(employee_id)
+    total_weekly_hours = get_employee_department_hours(employee_id)
+    employee_form = EmployeeForm()
+    employee_form.first_name.data = employee[1]
+    employee_form.last_name.data = employee[2]
+    employee_form.position.data = employee[3]
+    employee_form.weekly_hours.data = employee[4]
+
+    return render_template(
+        "edit_employee.html",
+        employee=employee,
+        assignments=assignments,
+        total_weekly_hours=total_weekly_hours,
+        employee_user=None,
+        credentials_form=form,
+        form=employee_form,
+    )
+
+
+@bp.route(
+    "/employees/<int:employee_id>/credentials/update",
+    methods=["POST"],
+)
+def update_employee_credentials_page(employee_id):
+    employee_user = get_user_by_employee_id(employee_id)
+
+    if employee_user is None:
+        return "Zamestnanec nemá prihlasovací účet.", 404
+
+    form = CredentialsForm()
+
+    if form.validate_on_submit():
+        if not username_exists(
+            form.username.data, exclude_user_id=employee_user.id
+        ):
+            set_username(employee_user.id, form.username.data)
+        else:
+            flash("Toto používateľské meno už niekto používa.", "error")
+            return redirect(f"/employees/edit/{employee_id}")
+
+        if form.password.data:
+            set_password(employee_user.id, form.password.data)
+
+        flash("Prihlasovacie údaje boli aktualizované.", "error")
+
+    return redirect(f"/employees/edit/{employee_id}")
+
+
+@bp.route(
+    "/employees/<int:employee_id>/credentials/delete",
+    methods=["POST"],
+)
+def delete_employee_credentials_page(employee_id):
+    employee_user = get_user_by_employee_id(employee_id)
+
+    if employee_user is not None:
+        delete_user(employee_user.id)
+
+    return redirect(f"/employees/edit/{employee_id}")
 
 
 @bp.route(
@@ -1099,6 +1342,11 @@ def create_app(database_path=None):
     db.init_app(app)
     migrate.init_app(app, db, directory=str(migrations_dir))
     csrf.init_app(app)
+
+    login_manager.init_app(app)
+    login_manager.login_view = "main.login_page"
+    login_manager.login_message = "Prosím, prihlás sa."
+    login_manager.login_message_category = "error"
 
     app.register_blueprint(bp)
 

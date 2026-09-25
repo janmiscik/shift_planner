@@ -5,6 +5,8 @@ Použitie:
                                             # (najprv automaticky zálohuje
                                             # existujúcu databázu)
     python manage.py runserver             # spustí vývojový webový server
+    python manage.py create-manager <meno> # vytvorí manažérsky účet
+                                            # (meno je nepovinné, opýta sa)
     python manage.py backup                # ručne zálohuje databázu
     python manage.py list-backups          # vypíše dostupné zálohy
     python manage.py restore <nazov_suboru> # obnoví databázu zo zálohy
@@ -46,6 +48,9 @@ def main():
         from app.web.app import create_app
 
         create_app().run(debug=True)
+
+    elif command == "create-manager":
+        _run_create_manager(sys.argv[2] if len(sys.argv) > 2 else None)
 
     elif command == "backup":
         _run_backup()
@@ -128,6 +133,42 @@ def main():
     else:
         print(f"Neznámy príkaz: {command}")
         print(__doc__)
+
+
+def _run_create_manager(username):
+    import getpass
+
+    from app.services.auth_service import create_manager
+    from app.web.app import create_app
+
+    if not username:
+        username = input("Používateľské meno pre manažéra: ").strip()
+
+    if not username:
+        print("Používateľské meno nemôže byť prázdne.")
+        return
+
+    password = getpass.getpass("Heslo: ")
+
+    if len(password) < 6:
+        print("Heslo musí mať aspoň 6 znakov.")
+        return
+
+    password_confirm = getpass.getpass("Heslo znova: ")
+
+    if password != password_confirm:
+        print("Heslá sa nezhodujú.")
+        return
+
+    app = create_app()
+
+    with app.app_context():
+        user_id = create_manager(username, password)
+
+    if user_id is None:
+        print(f"Používateľské meno '{username}' už existuje.")
+    else:
+        print(f"Manažérsky účet '{username}' vytvorený.")
 
 
 def _run_backup():

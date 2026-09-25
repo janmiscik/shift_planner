@@ -119,6 +119,60 @@
         </div>
 
 
+        <h3>
+            Prihlasovacie údaje
+        </h3>
+
+        <p style="margin-top: -8px; color: var(--muted); font-size: 13px;">
+            Zamestnanec sa nimi prihlási do svojho rozpisu (len na
+            čítanie).
+        </p>
+
+        <div class="form-group">
+
+            <label for="cred_username">
+                Používateľské meno
+            </label>
+
+            <input
+                type="text"
+                id="cred_username"
+                name="username"
+                value="{{ credentials_form.username.data or '' }}"
+                required
+            >
+
+            {% for error in credentials_form.username.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="cred_password">
+                Heslo
+            </label>
+
+            <input
+                type="password"
+                id="cred_password"
+                name="password"
+                required
+            >
+
+            <small>
+                Aspoň 6 znakov.
+            </small>
+
+            {% for error in credentials_form.password.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
         <div class="actions">
 
             <button type="submit">

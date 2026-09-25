@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="sk">
+
+<head>
+    <meta charset="UTF-8">
+
+    <script>
+        (function () {
+            var saved = localStorage.getItem("theme");
+            if (saved === "dark") {
+                document.documentElement.setAttribute("data-theme", "dark");
+            }
+        })();
+    </script>
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Nemáš oprávnenie - Shift Planner</title>
+
+    <link
+        rel="icon"
+        type="image/x-icon"
+        href="{{ url_for('static', filename='img/favicon.ico') }}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<div class="login-page">
+
+    <div class="login-card" style="text-align: center;">
+
+        <img
+            src="{{ url_for('static', filename='img/logo.png') }}"
+            alt="Shift Planner"
+            class="login-logo"
+        >
+
+        <h2 style="margin: 0 0 10px;">
+            🔒 Nemáš oprávnenie
+        </h2>
+
+        <p style="color: var(--muted); margin-bottom: 24px;">
+            Táto stránka je dostupná len pre manažérov. Tvoj účet má
+            prístup len k vlastnému rozpisu.
+        </p>
+
+        <a href="/my-schedule" class="btn" style="width: 100%;">
+            ← Späť na môj rozpis
+        </a>
+
+    </div>
+
+</div>
+
+</body>
+</html>

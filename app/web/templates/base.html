@@ -4,6 +4,18 @@
 <head>
     <meta charset="UTF-8">
 
+    <script>
+        // Nastaví tému HNEĎ (skôr než sa vykreslí CSS), aby pri
+        // načítaní stránky nebolo na zlomok sekundy vidieť opačnú
+        // tému (tzv. "flash of wrong theme").
+        (function () {
+            var saved = localStorage.getItem("theme");
+            if (saved === "dark") {
+                document.documentElement.setAttribute("data-theme", "dark");
+            }
+        })();
+    </script>
+
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
@@ -45,42 +57,75 @@
 
         <nav class="sidebar-nav">
 
-            <a href="/">
-                <span class="nav-icon">⌂</span>
-                <span>Dashboard</span>
-            </a>
+            {% if current_user.is_authenticated and current_user.role == "employee" %}
 
-            <a href="/employees">
-                <span class="nav-icon">👥</span>
-                <span>Zamestnanci</span>
-            </a>
+                <a href="/my-schedule">
+                    <span class="nav-icon">📅</span>
+                    <span>Môj rozpis</span>
+                </a>
 
-            <a href="/departments">
-                <span class="nav-icon">▦</span>
-                <span>Oddelenia</span>
-            </a>
+            {% else %}
 
-            <a href="/shifts">
-                <span class="nav-icon">◷</span>
-                <span>Smeny</span>
-            </a>
+                <a href="/">
+                    <span class="nav-icon">⌂</span>
+                    <span>Dashboard</span>
+                </a>
 
-            <a href="/calendar">
-                <span class="nav-icon">▣</span>
-                <span>Kalendár</span>
-            </a>
+                <a href="/employees">
+                    <span class="nav-icon">👥</span>
+                    <span>Zamestnanci</span>
+                </a>
 
-            <a href="/absences">
-                <span class="nav-icon">🌴</span>
-                <span>Absencie</span>
-            </a>
+                <a href="/departments">
+                    <span class="nav-icon">▦</span>
+                    <span>Oddelenia</span>
+                </a>
 
-            <a href="/admin/backup" download>
-                <span class="nav-icon">💾</span>
-                <span>Zálohovať databázu</span>
-            </a>
+                <a href="/shifts">
+                    <span class="nav-icon">◷</span>
+                    <span>Smeny</span>
+                </a>
+
+                <a href="/calendar">
+                    <span class="nav-icon">▣</span>
+                    <span>Kalendár</span>
+                </a>
+
+                <a href="/absences">
+                    <span class="nav-icon">🌴</span>
+                    <span>Absencie</span>
+                </a>
+
+                <a href="/admin/backup" download>
+                    <span class="nav-icon">💾</span>
+                    <span>Zálohovať databázu</span>
+                </a>
+
+            {% endif %}
 
         </nav>
+
+        {% if current_user.is_authenticated %}
+
+            <div class="sidebar-user">
+
+                <div class="sidebar-user-name">
+                    {{ current_user.username }}
+                </div>
+
+                <form method="POST" action="/logout">
+
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <button type="submit" class="sidebar-logout">
+                        Odhlásiť sa
+                    </button>
+
+                </form>
+
+            </div>
+
+        {% endif %}
 
     </aside>
 
@@ -92,6 +137,16 @@
                 {% block topbar %}
                 {% endblock %}
             </div>
+
+            <button
+                type="button"
+                id="theme-toggle"
+                class="theme-toggle"
+                title="Prepnúť tmavý/svetlý režim"
+                aria-label="Prepnúť tmavý/svetlý režim"
+            >
+                <span id="theme-toggle-icon">🌙</span>
+            </button>
 
         </header>
 
@@ -138,6 +193,35 @@
     </div>
 
 </div>
+
+<script>
+    (function () {
+        var toggle = document.getElementById("theme-toggle");
+        var icon = document.getElementById("theme-toggle-icon");
+        var root = document.documentElement;
+
+        function updateIcon() {
+            var isDark = root.getAttribute("data-theme") === "dark";
+            icon.textContent = isDark ? "☀️" : "🌙";
+        }
+
+        updateIcon();
+
+        toggle.addEventListener("click", function () {
+            var isDark = root.getAttribute("data-theme") === "dark";
+
+            if (isDark) {
+                root.removeAttribute("data-theme");
+                localStorage.setItem("theme", "light");
+            } else {
+                root.setAttribute("data-theme", "dark");
+                localStorage.setItem("theme", "dark");
+            }
+
+            updateIcon();
+        });
+    })();
+</script>
 
 </body>
 </html>

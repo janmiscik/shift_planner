@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Môj rozpis - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Môj rozpis</h1>
+
+        <p>
+            {{ employee[1] }} {{ employee[2] }} — {{ employee[3] }}
+        </p>
+    </div>
+
+    <a class="btn btn-secondary" href="/my-schedule/export.ics">
+        ⬇ Export do kalendára (.ics)
+    </a>
+
+</div>
+
+
+<div class="card">
+
+    <h3 style="margin-top: 0;">
+        Moje smeny
+    </h3>
+
+    {% if shifts %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Dátum</th>
+                    <th>Začiatok</th>
+                    <th>Koniec</th>
+                    <th>Typ smeny</th>
+                    <th>Oddelenie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for shift in shifts %}
+
+                    <tr>
+                        <td>{{ shift[3] }}</td>
+                        <td>{{ shift[4] }}</td>
+                        <td>{{ shift[5] }}</td>
+                        <td>
+                            <span class="status-active">
+                                {{ shift[6] }}
+                            </span>
+                        </td>
+                        <td>{{ shift[9] or "—" }}</td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+            <p>Zatiaľ nemáš naplánované žiadne smeny.</p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+
+<div class="card" style="margin-top: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Moje absencie
+    </h3>
+
+    {% if absences %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Typ</th>
+                    <th>Od</th>
+                    <th>Do</th>
+                    <th>Poznámka</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for absence in absences %}
+
+                    <tr>
+                        <td>
+                            <span class="status-inactive">
+                                {{ absence[4] }}
+                            </span>
+                        </td>
+                        <td>{{ absence[5] }}</td>
+                        <td>{{ absence[6] }}</td>
+                        <td>{{ absence[7] or "—" }}</td>
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+            <p>Nemáš evidované žiadne absencie.</p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

@@ -15,6 +15,7 @@ importujú.
 import sqlite3
 
 from dotenv import load_dotenv
+from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import event
@@ -24,6 +25,7 @@ load_dotenv()
 
 db = SQLAlchemy()
 migrate = Migrate()
+login_manager = LoginManager()
 
 
 @event.listens_for(Engine, "connect")

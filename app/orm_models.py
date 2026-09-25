@@ -12,6 +12,7 @@ Vďaka ``association_proxy`` sa dá napriek tomu pristupovať jednoducho:
 ``employee.departments`` vráti rovno zoznam ``Department`` objektov.
 """
 
+from flask_login import UserMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 
 from app.extensions import db
@@ -51,6 +52,13 @@ class Employee(db.Model):
     # employee.departments -> zoznam Department objektov (bez nutnosti
     # ručne prechádzať department_links).
     departments = association_proxy("department_links", "department")
+
+    user = db.relationship(
+        "User",
+        back_populates="employee",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self):
         return f"<Employee {self.id} {self.first_name} {self.last_name}>"
@@ -172,3 +180,29 @@ class Absence(db.Model):
             f"<Absence {self.id} employee={self.employee_id} "
             f"{self.absence_type} {self.start_date}-{self.end_date}>"
         )
+
+
+class User(UserMixin, db.Model):
+    """Prihlasovací účet.
+
+    ``role`` je buď "manager" (plný prístup) alebo "employee"
+    (prístup len na čítanie vlastného rozpisu - viazaný na
+    konkrétneho zamestnanca cez ``employee_id``).
+    """
+
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String, nullable=False, unique=True)
+    password_hash = db.Column(db.String, nullable=False)
+    role = db.Column(db.String, nullable=False)
+    employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    employee = db.relationship("Employee", back_populates="user")
+
+    def __repr__(self):
+        return f"<User {self.id} {self.username} ({self.role})>"

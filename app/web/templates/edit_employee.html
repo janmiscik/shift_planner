@@ -335,6 +335,155 @@
 </div>
 
 
+<div class="card" style="margin-top: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Prihlasovacie údaje
+    </h3>
+
+    {% if employee_user %}
+
+        <p style="color: var(--muted); font-size: 13px;">
+            Zamestnanec má prihlasovací účet
+            <strong>{{ employee_user.username }}</strong>.
+        </p>
+
+        <form method="POST" action="/employees/{{ employee[0] }}/credentials/update">
+
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+
+                <label for="update_username">
+                    Používateľské meno
+                </label>
+
+                <input
+                    type="text"
+                    id="update_username"
+                    name="username"
+                    value="{{ employee_user.username }}"
+                    required
+                >
+
+                {% for error in credentials_form.username.errors %}
+                    <span class="field-error">{{ error }}</span>
+                {% endfor %}
+
+            </div>
+
+            <div class="form-group">
+
+                <label for="update_password">
+                    Nové heslo
+                </label>
+
+                <input
+                    type="password"
+                    id="update_password"
+                    name="password"
+                >
+
+                <small>
+                    Nechaj prázdne, ak nechceš heslo meniť. Inak aspoň
+                    6 znakov.
+                </small>
+
+                {% for error in credentials_form.password.errors %}
+                    <span class="field-error">{{ error }}</span>
+                {% endfor %}
+
+            </div>
+
+            <div class="actions">
+                <button type="submit">
+                    Uložiť prihlasovacie údaje
+                </button>
+            </div>
+
+        </form>
+
+        <form
+            method="POST"
+            action="/employees/{{ employee[0] }}/credentials/delete"
+            style="margin-top: 12px;"
+            onsubmit="return confirm('Naozaj chceš zrušiť prihlásenie tohto zamestnanca?');"
+        >
+
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <button type="submit" class="btn btn-delete btn-small">
+                🗑️ Zrušiť prihlásenie
+            </button>
+
+        </form>
+
+    {% else %}
+
+        <p style="color: var(--muted); font-size: 13px;">
+            Tento zamestnanec zatiaľ nemá prihlasovací účet.
+        </p>
+
+        <form method="POST" action="/employees/{{ employee[0] }}/credentials/create">
+
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+
+                <label for="create_username">
+                    Používateľské meno
+                </label>
+
+                <input
+                    type="text"
+                    id="create_username"
+                    name="username"
+                    value="{{ credentials_form.username.data or '' }}"
+                    required
+                >
+
+                {% for error in credentials_form.username.errors %}
+                    <span class="field-error">{{ error }}</span>
+                {% endfor %}
+
+            </div>
+
+            <div class="form-group">
+
+                <label for="create_password">
+                    Heslo
+                </label>
+
+                <input
+                    type="password"
+                    id="create_password"
+                    name="password"
+                    required
+                >
+
+                <small>
+                    Aspoň 6 znakov.
+                </small>
+
+                {% for error in credentials_form.password.errors %}
+                    <span class="field-error">{{ error }}</span>
+                {% endfor %}
+
+            </div>
+
+            <div class="actions">
+                <button type="submit">
+                    Vytvoriť prihlásenie
+                </button>
+            </div>
+
+        </form>
+
+    {% endif %}
+
+</div>
+
+
 <div style="margin-top: 20px;">
 
     <a

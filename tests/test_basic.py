@@ -25,6 +25,11 @@ def client(tmp_path):
     - vďaka tomu má každý test naozaj izolovanú databázu aj so
     SQLAlchemy (ktoré si engine viaže na konkrétnu appku pri jej
     vytvorení).
+
+    Automaticky sa prihlási ako manažér (``testmanager``), keďže
+    všetky routy okrem /login teraz vyžadujú prihlásenie - testy
+    zamerané priamo na prihlasovanie/role si robia vlastné
+    prihlásenie/odhlásenie.
     """
 
     db_path = tmp_path / "test_shift_planner.db"
@@ -38,7 +43,24 @@ def client(tmp_path):
     with flask_app.app_context():
         db.create_all()
 
+        from app.services.auth_service import create_manager
+
+        create_manager("testmanager", "testpassword123")
+
     with flask_app.test_client() as test_client:
+        login_page = test_client.get("/login")
+        token = _extract_csrf_token(login_page.get_data(as_text=True))
+
+        test_client.post(
+            "/login",
+            data={
+                "csrf_token": token,
+                "username": "testmanager",
+                "password": "testpassword123",
+            },
+            follow_redirects=True,
+        )
+
         yield test_client
 
 
@@ -90,6 +112,8 @@ def test_add_employee(client):
         data={
             "first_name": "Jana",
             "last_name": "Nová",
+            "username": "testuser1",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -142,6 +166,8 @@ def _create_employee_with_department(client, weekly_hours="20", dept_hours="10")
         data={
             "first_name": "Jana",
             "last_name": "Nová",
+            "username": "testuser2",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": weekly_hours,
         },
@@ -265,6 +291,8 @@ def test_shift_rejected_for_unassigned_department(client):
         data={
             "first_name": "Jana",
             "last_name": "Nová",
+            "username": "testuser3",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -427,6 +455,8 @@ def test_calendar_event_flags_near_weekly_limit(client):
         data={
             "first_name": "Ján",
             "last_name": "Blízko",
+            "username": "testuser4",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "20",
         },
@@ -478,6 +508,8 @@ def test_calendar_event_flags_over_weekly_limit_after_fund_reduction(client):
         data={
             "first_name": "Ján",
             "last_name": "Prekroceny",
+            "username": "testuser5",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -504,6 +536,8 @@ def test_calendar_event_flags_over_weekly_limit_after_fund_reduction(client):
         data={
             "first_name": "Ján",
             "last_name": "Prekroceny",
+            "username": "testuser6",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "8",
         },
@@ -529,6 +563,8 @@ def test_api_shifts_filtered_by_department(client):
         data={
             "first_name": "Ján",
             "last_name": "Novák",
+            "username": "testuser7",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -539,6 +575,8 @@ def test_api_shifts_filtered_by_department(client):
         data={
             "first_name": "Eva",
             "last_name": "Krátka",
+            "username": "testuser8",
+            "password": "testpass123",
             "position": "Skladníčka",
             "weekly_hours": "40",
         },
@@ -659,6 +697,8 @@ def test_employee_export_ics_contains_only_their_shifts(client):
         data={
             "first_name": "Ján",
             "last_name": "Novák",
+            "username": "testuser9",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -669,6 +709,8 @@ def test_employee_export_ics_contains_only_their_shifts(client):
         data={
             "first_name": "Eva",
             "last_name": "Krátka",
+            "username": "testuser10",
+            "password": "testpass123",
             "position": "Skladníčka",
             "weekly_hours": "40",
         },
@@ -763,6 +805,8 @@ def _setup_department_filter_scenario(client):
             data={
                 "first_name": first_name,
                 "last_name": "Test",
+                "username": f"testuser_{first_name.lower()}",
+                "password": "testpass123",
                 "position": "Operátor",
                 "weekly_hours": "40",
             },
@@ -883,6 +927,8 @@ def test_understaffed_shift_is_detected(client):
             data={
                 "first_name": first_name,
                 "last_name": "Test",
+                "username": f"testuser_{first_name.lower()}",
+                "password": "testpass123",
                 "position": "Operátor",
                 "weekly_hours": "40",
             },
@@ -928,6 +974,8 @@ def test_calendar_page_shows_capacity_warning(client):
         data={
             "first_name": "Ján",
             "last_name": "Test",
+            "username": "testuser11",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -972,6 +1020,8 @@ def test_add_absence(client):
         data={
             "first_name": "Ján",
             "last_name": "Dovolenkár",
+            "username": "testuser12",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -1007,6 +1057,8 @@ def test_shift_blocked_during_absence(client):
         data={
             "first_name": "Ján",
             "last_name": "Dovolenkár",
+            "username": "testuser13",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -1052,6 +1104,8 @@ def test_shift_allowed_outside_absence_range(client):
         data={
             "first_name": "Ján",
             "last_name": "Dovolenkár",
+            "username": "testuser14",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -1096,6 +1150,8 @@ def test_adding_absence_warns_about_existing_shifts(client):
         data={
             "first_name": "Ján",
             "last_name": "Dovolenkár",
+            "username": "testuser15",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -1138,6 +1194,8 @@ def test_absence_end_before_start_is_rejected(client):
         data={
             "first_name": "Ján",
             "last_name": "Dovolenkár",
+            "username": "testuser16",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -1171,6 +1229,8 @@ def test_delete_absence(client):
         data={
             "first_name": "Ján",
             "last_name": "Dovolenkár",
+            "username": "testuser17",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "40",
         },
@@ -1277,6 +1337,8 @@ def test_insufficient_rest_between_shifts_is_rejected(client):
         data={
             "first_name": "Ján",
             "last_name": "Odpocinok",
+            "username": "testuser18",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "60",
         },
@@ -1326,6 +1388,8 @@ def test_exactly_minimum_rest_is_allowed(client):
         data={
             "first_name": "Ján",
             "last_name": "Odpocinok",
+            "username": "testuser19",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "60",
         },
@@ -1374,6 +1438,8 @@ def test_statutory_48h_weekly_cap_overrides_higher_personal_fund(client):
         data={
             "first_name": "Ján",
             "last_name": "Nadcasar",
+            "username": "testuser20",
+            "password": "testpass123",
             "position": "Operátor",
             "weekly_hours": "60",
         },
@@ -1418,6 +1484,339 @@ def test_statutory_48h_weekly_cap_overrides_higher_personal_fund(client):
 
     assert len(get_shifts()) == 4
     assert "zákonný strop" in response.get_data(as_text=True)
+
+
+# ---------------------------------------------------------------------
+# Prihlásenie a role (manažér vs. zamestnanec)
+# ---------------------------------------------------------------------
+
+def _logout(client):
+    token = _csrf_token_for(client, "/")
+    client.post("/logout", data={"csrf_token": token}, follow_redirects=True)
+
+
+def test_login_page_loads_when_logged_out(client):
+    _logout(client)
+
+    response = client.get("/login")
+
+    assert response.status_code == 200
+    assert "Prihlásiť sa" in response.get_data(as_text=True)
+
+
+def test_unauthenticated_request_redirects_to_login(client):
+    _logout(client)
+
+    response = client.get("/employees", follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "Prihlásiť sa" in response.get_data(as_text=True)
+
+
+def test_login_with_wrong_password_is_rejected(client):
+    _logout(client)
+
+    token = _csrf_token_for(client, "/login")
+    response = client.post(
+        "/login",
+        data={
+            "csrf_token": token,
+            "username": "testmanager",
+            "password": "zle-heslo",
+        },
+        follow_redirects=True,
+    )
+
+    assert "Nesprávne používateľské meno alebo heslo" in response.get_data(
+        as_text=True
+    )
+
+
+def test_login_with_correct_credentials_succeeds(client):
+    _logout(client)
+
+    token = _csrf_token_for(client, "/login")
+    response = client.post(
+        "/login",
+        data={
+            "csrf_token": token,
+            "username": "testmanager",
+            "password": "testpassword123",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    # Po prihlásení manažéra sa dostane na dashboard s plnou navigáciou.
+    assert "Zamestnanci" in response.get_data(as_text=True)
+
+
+def test_adding_employee_creates_login_account(client):
+    from app.services.employee_service import get_employees
+    from app.services.auth_service import get_user_by_employee_id
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Nový",
+            "last_name": "Zamestnanec",
+            "position": "Operátor",
+            "weekly_hours": "40",
+            "username": "novy.zamestnanec",
+            "password": "heslo123",
+        },
+    )
+
+    employee_id = [
+        e[0] for e in get_employees() if e[1] == "Nový"
+    ][0]
+
+    user = get_user_by_employee_id(employee_id)
+
+    assert user is not None
+    assert user.username == "novy.zamestnanec"
+    assert user.role == "employee"
+
+
+def test_duplicate_username_is_rejected_on_add_employee(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Prvý",
+            "last_name": "Test",
+            "position": "Operátor",
+            "weekly_hours": "40",
+            "username": "rovnakemeno",
+            "password": "heslo123",
+        },
+    )
+
+    response = post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Druhý",
+            "last_name": "Test",
+            "position": "Operátor",
+            "weekly_hours": "40",
+            "username": "rovnakemeno",
+            "password": "heslo456",
+        },
+    )
+
+    employees = get_employees()
+
+    assert len(employees) == 1
+    assert "už niekto používa" in response.get_data(as_text=True)
+
+
+def test_employee_role_can_login_and_see_own_schedule(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Zamestnanec",
+            "last_name": "Testovaci",
+            "position": "Operátor",
+            "weekly_hours": "40",
+            "username": "zamestnanec1",
+            "password": "heslo123",
+        },
+    )
+    employee_id = [
+        e[0] for e in get_employees() if e[1] == "Zamestnanec"
+    ][0]
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(employee_id),
+            "department_id": "",
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    _logout(client)
+
+    token = _csrf_token_for(client, "/login")
+    login_response = client.post(
+        "/login",
+        data={
+            "csrf_token": token,
+            "username": "zamestnanec1",
+            "password": "heslo123",
+        },
+        follow_redirects=True,
+    )
+
+    body = login_response.get_data(as_text=True)
+    assert "Môj rozpis" in body
+    assert "2026-09-21" in body
+
+
+def test_employee_role_cannot_access_manager_routes(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Zamestnanec",
+            "last_name": "Obmedzeny",
+            "position": "Operátor",
+            "weekly_hours": "40",
+            "username": "obmedzeny1",
+            "password": "heslo123",
+        },
+    )
+
+    _logout(client)
+
+    token = _csrf_token_for(client, "/login")
+    client.post(
+        "/login",
+        data={
+            "csrf_token": token,
+            "username": "obmedzeny1",
+            "password": "heslo123",
+        },
+        follow_redirects=True,
+    )
+
+    response = client.get("/employees")
+
+    assert response.status_code == 403
+
+
+def test_employee_role_sees_only_their_own_shifts(client):
+    from app.services.employee_service import get_employees
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "PrvyZam",
+            "last_name": "Test",
+            "position": "Operátor",
+            "weekly_hours": "40",
+            "username": "prvyzam",
+            "password": "heslo123",
+        },
+    )
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "DruhyZam",
+            "last_name": "Test",
+            "position": "Operátor",
+            "weekly_hours": "40",
+            "username": "druhyzam",
+            "password": "heslo123",
+        },
+    )
+
+    employees = get_employees()
+    prvy_id = [e[0] for e in employees if e[1] == "PrvyZam"][0]
+    druhy_id = [e[0] for e in employees if e[1] == "DruhyZam"][0]
+
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(prvy_id),
+            "department_id": "",
+            "shift_date": "2026-09-21",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+    post(
+        client,
+        "/shifts/add",
+        data={
+            "employee_id": str(druhy_id),
+            "department_id": "",
+            "shift_date": "2026-09-22",
+            "start_time": "06:00",
+            "end_time": "14:00",
+            "shift_type": "Ranná",
+        },
+    )
+
+    _logout(client)
+    token = _csrf_token_for(client, "/login")
+    client.post(
+        "/login",
+        data={
+            "csrf_token": token,
+            "username": "prvyzam",
+            "password": "heslo123",
+        },
+        follow_redirects=True,
+    )
+
+    response = client.get("/my-schedule")
+    body = response.get_data(as_text=True)
+
+    assert "2026-09-21" in body
+    assert "2026-09-22" not in body
+
+
+def test_manager_can_create_credentials_for_existing_employee(client):
+    from app.services.employee_service import get_employees
+    from app.services.auth_service import get_user_by_employee_id
+
+    post(
+        client,
+        "/employees/add",
+        data={
+            "first_name": "Bez",
+            "last_name": "Uctu",
+            "position": "Operátor",
+            "weekly_hours": "40",
+            "username": "bezuctu_docasny",
+            "password": "heslo123",
+        },
+    )
+    employee_id = [e[0] for e in get_employees() if e[1] == "Bez"][0]
+
+    # Zrušíme mu účet (simulácia "zamestnanca bez prihlásenia")
+    user = get_user_by_employee_id(employee_id)
+    token = _csrf_token_for(client, f"/employees/edit/{employee_id}")
+    client.post(
+        f"/employees/{employee_id}/credentials/delete",
+        data={"csrf_token": token},
+        follow_redirects=True,
+    )
+
+    assert get_user_by_employee_id(employee_id) is None
+
+    token = _csrf_token_for(client, f"/employees/edit/{employee_id}")
+    client.post(
+        f"/employees/{employee_id}/credentials/create",
+        data={
+            "csrf_token": token,
+            "username": "novy_ucet",
+            "password": "novehes123",
+        },
+        follow_redirects=True,
+    )
+
+    new_user = get_user_by_employee_id(employee_id)
+    assert new_user is not None
+    assert new_user.username == "novy_ucet"
 
 
 def test_shift_delete(client):

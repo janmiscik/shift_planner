@@ -5,6 +5,7 @@ from wtforms import (
     DateField,
     FloatField,
     IntegerField,
+    PasswordField,
     SelectField,
     StringField,
     TimeField,
@@ -154,4 +155,32 @@ class AbsenceForm(FlaskForm):
     note = StringField(
         "Poznámka",
         validators=[Optional(), Length(max=255)],
+    )
+
+
+class LoginForm(FlaskForm):
+    username = StringField(
+        "Používateľské meno",
+        validators=[DataRequired(message="Zadaj používateľské meno.")],
+    )
+    password = PasswordField(
+        "Heslo",
+        validators=[DataRequired(message="Zadaj heslo.")],
+    )
+
+
+class CredentialsForm(FlaskForm):
+    """Vytvorenie/úprava prihlasovacích údajov zamestnanca (na
+    stránke úpravy zamestnanca)."""
+
+    username = StringField(
+        "Používateľské meno",
+        validators=[
+            DataRequired(message="Zadaj používateľské meno."),
+            Length(max=80),
+        ],
+    )
+    password = PasswordField(
+        "Heslo",
+        validators=[Optional(), Length(min=6, message="Aspoň 6 znakov.")],
     )

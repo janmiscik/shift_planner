@@ -22,7 +22,12 @@ Webová aplikácia (Flask) na plánovanie pracovných zmien zamestnancov.
 - export harmonogramu do Excelu (.xlsx), PDF a iCalendar (.ics -
   zamestnanec si svoje smeny vie naimportovať do Google Kalendára
   alebo Outlooku cez `/employees/<id>/export.ics`),
-- CSRF ochrana a backendová validácia formulárov (Flask-WTF).
+- CSRF ochrana a backendová validácia formulárov (Flask-WTF),
+- prihlasovanie s dvomi rolami - manažér (plný prístup) a zamestnanec
+  (len na čítanie vlastného rozpisu),
+- tmavý/svetlý režim appky,
+- zálohovanie databázy (automaticky pred migráciou, aj ručne jedným
+  klikom v appke).
 
 ## Inštalácia
 
@@ -44,6 +49,34 @@ Webová aplikácia (Flask) na plánovanie pracovných zmien zamestnancov.
    ```powershell
    python manage.py migrate
    ```
+
+4. Vytvor si manažérsky účet (nutné, inak sa do appky nedostaneš):
+
+   ```powershell
+   python manage.py create-manager
+   ```
+
+   Opýta sa na používateľské meno a heslo (heslo sa pri písaní
+   nezobrazuje).
+
+## Prihlasovanie a role
+
+Appka teraz vyžaduje prihlásenie. Sú dve role:
+
+- **manažér** - plný prístup ku všetkému (presne to, čo appka robila
+  doteraz),
+- **zamestnanec** - prístup len na čítanie vlastného rozpisu
+  (`/my-schedule`) a exportu vlastných zmien do `.ics`. Nevidí iných
+  zamestnancov, oddelenia, ani nemôže nič upravovať.
+
+Prihlasovacie údaje pre zamestnanca sa vytvárajú **automaticky** pri
+jeho pridaní (`/employees/add`) - vyplníš mu meno/heslo priamo v tom
+istom formulári. Existujúcemu zamestnancovi bez účtu ich vieš
+dodatočne vytvoriť na jeho stránke úpravy (`/employees/edit/<id>`),
+tam si aj vieš resetovať heslo alebo účet zrušiť.
+
+Ďalších manažérov (okrem prvého) vytvoríš rovnako cez
+`python manage.py create-manager`.
 
 ## Spustenie
 

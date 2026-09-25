@@ -19,6 +19,72 @@
     --danger: #dc2626;
     --radius: 14px;
     --shadow: 0 8px 30px rgba(15, 23, 42, 0.07);
+
+    /* Farby "čipov"/odznakov (typ smeny, stav, kapacita...) - majú
+       vlastnú svetlú/tmavú verziu nižšie pod [data-theme="dark"]. */
+    --chip-morning-bg: #dcfce7;
+    --chip-morning-text: #166534;
+    --chip-afternoon-bg: #ffedd5;
+    --chip-afternoon-text: #9a3412;
+    --chip-night-bg: #e0e7ff;
+    --chip-night-text: #3730a3;
+    --chip-mid-bg: #fef3c7;
+    --chip-mid-text: #92400e;
+    --chip-active-bg: #dcfce7;
+    --chip-active-text: #166534;
+    --chip-inactive-bg: #fee2e2;
+    --chip-inactive-text: #991b1b;
+    --today-bg: #eef2ff;
+    --flash-error-bg: #fef2f2;
+    --flash-error-border: #fecaca;
+    --flash-error-text: #991b1b;
+    --flash-success-bg: #f0fdf4;
+    --flash-success-border: #bbf7d0;
+    --flash-success-text: #166534;
+    --capacity-bg: #fff7ed;
+    --capacity-border: #f59e0b;
+    --capacity-text: #92400e;
+}
+
+[data-theme="dark"] {
+    --bg: #0b0f1a;
+    --surface: #141a29;
+    --surface-soft: #1a2233;
+    --border: #2a3347;
+    --text: #e5e9f2;
+    --muted: #94a1b8;
+    --primary: #6366f1;
+    --primary-dark: #818cf8;
+    --sidebar: #05070d;
+    --sidebar-soft: #141a29;
+    --sidebar-text: #cbd5e1;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #f87171;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+
+    --chip-morning-bg: #143a24;
+    --chip-morning-text: #6ee7a3;
+    --chip-afternoon-bg: #3a2410;
+    --chip-afternoon-text: #fdba74;
+    --chip-night-bg: #241f4a;
+    --chip-night-text: #b4b0f5;
+    --chip-mid-bg: #3a2e0c;
+    --chip-mid-text: #fcd34d;
+    --chip-active-bg: #143a24;
+    --chip-active-text: #6ee7a3;
+    --chip-inactive-bg: #3a1414;
+    --chip-inactive-text: #fca5a5;
+    --today-bg: #1e2a4a;
+    --flash-error-bg: #2b1414;
+    --flash-error-border: #7f1d1d;
+    --flash-error-text: #fca5a5;
+    --flash-success-bg: #0f2a1a;
+    --flash-success-border: #166534;
+    --flash-success-text: #86efac;
+    --capacity-bg: #2b1d0a;
+    --capacity-border: #b45309;
+    --capacity-text: #fcd34d;
 }
 
 html,
@@ -142,6 +208,49 @@ body {
     opacity: 0.85;
 }
 
+.sidebar-user {
+    margin-top: auto;
+    padding-top: 20px;
+
+    border-top: 1px solid var(--sidebar-soft);
+}
+
+.sidebar-user-name {
+    padding: 0 13px;
+    margin-bottom: 8px;
+
+    color: var(--sidebar-text);
+    font-size: 13px;
+    font-weight: 700;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sidebar-logout {
+    width: 100%;
+
+    padding: 10px 13px;
+
+    background: transparent;
+    border: 1px solid var(--sidebar-soft);
+    border-radius: 10px;
+
+    color: var(--sidebar-text);
+    font-size: 13px;
+    font-weight: 600;
+
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+}
+
+.sidebar-logout:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: white;
+}
+
 /* =========================
    TOP BAR
    ========================= */
@@ -151,12 +260,35 @@ body {
 
     display: flex;
     align-items: center;
+    justify-content: space-between;
 
     padding: 0 34px;
 
     background: var(--surface);
 
     border-bottom: 1px solid var(--border);
+}
+
+.theme-toggle {
+    width: 40px;
+    height: 40px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-soft);
+
+    font-size: 17px;
+    cursor: pointer;
+
+    transition: background 0.15s ease;
+}
+
+.theme-toggle:hover {
+    background: var(--border);
 }
 
 /* =========================
@@ -411,7 +543,7 @@ label {
 
     margin-bottom: 7px;
 
-    color: #374151;
+    color: var(--text);
 
     font-size: 13px;
     font-weight: 700;
@@ -424,10 +556,10 @@ textarea {
 
     padding: 11px 13px;
 
-    border: 1px solid #d7dce5;
+    border: 1px solid var(--border);
     border-radius: 9px;
 
-    background: white;
+    background: var(--surface);
 
     color: var(--text);
 
@@ -507,7 +639,7 @@ tbody tr {
 }
 
 tbody tr:hover {
-    background: #f8faff;
+    background: var(--surface-soft);
 }
 
 tbody tr:last-child td {
@@ -551,13 +683,13 @@ tbody tr:last-child td {
 }
 
 .status-active {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--chip-active-bg);
+    color: var(--chip-active-text);
 }
 
 .status-inactive {
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--chip-inactive-bg);
+    color: var(--chip-inactive-text);
 }
 
 /* =========================
@@ -691,39 +823,39 @@ tbody tr:last-child td {
    ========================= */
 
 .shift-morning {
-    background: #dcfce7;
+    background: var(--chip-morning-bg);
     border-left-color: #16a34a;
 }
 
 .shift-morning small {
-    color: #166534;
+    color: var(--chip-morning-text);
 }
 
 .shift-afternoon {
-    background: #ffedd5;
+    background: var(--chip-afternoon-bg);
     border-left-color: #ea580c;
 }
 
 .shift-afternoon small {
-    color: #9a3412;
+    color: var(--chip-afternoon-text);
 }
 
 .shift-night {
-    background: #e0e7ff;
+    background: var(--chip-night-bg);
     border-left-color: #4f46e5;
 }
 
 .shift-night small {
-    color: #3730a3;
+    color: var(--chip-night-text);
 }
 
 .shift-mid {
-    background: #fef3c7;
+    background: var(--chip-mid-bg);
     border-left-color: #d97706;
 }
 
 .shift-mid small {
-    color: #92400e;
+    color: var(--chip-mid-text);
 }
 
 /* =========================
@@ -807,13 +939,13 @@ tbody tr:last-child td {
 }
 
 .legend-hours-near {
-    background: #fff7ed;
-    border: 2px solid #f59e0b;
+    background: var(--capacity-bg);
+    border: 2px solid var(--capacity-border);
 }
 
 .legend-hours-over {
-    background: #fef2f2;
-    border: 2px solid #dc2626;
+    background: var(--flash-error-bg);
+    border: 2px solid var(--danger);
 }
 
 /* =========================
@@ -825,9 +957,9 @@ tbody tr:last-child td {
 
     border-top: 1px solid var(--border);
 
-    background: white;
+    background: var(--surface);
 
-    color: #94a3b8;
+    color: var(--muted);
 
     text-align: center;
 
@@ -936,7 +1068,7 @@ tbody tr:last-child td {
     --fc-border-color: var(--border);
     --fc-page-bg-color: var(--surface);
     --fc-neutral-bg-color: var(--surface-soft);
-    --fc-today-bg-color: #eef2ff;
+    --fc-today-bg-color: var(--today-bg);
     --fc-button-bg-color: var(--primary);
     --fc-button-border-color: var(--primary);
     --fc-button-hover-bg-color: var(--primary-dark);
@@ -962,23 +1094,23 @@ tbody tr:last-child td {
 }
 
 #shift-calendar .shift-morning {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--chip-morning-bg);
+    color: var(--chip-morning-text);
 }
 
 #shift-calendar .shift-mid {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--chip-mid-bg);
+    color: var(--chip-mid-text);
 }
 
 #shift-calendar .shift-afternoon {
-    background: #dbeafe;
-    color: #1e40af;
+    background: var(--chip-afternoon-bg);
+    color: var(--chip-afternoon-text);
 }
 
 #shift-calendar .shift-night {
-    background: #ede9fe;
-    color: #5b21b6;
+    background: var(--chip-night-bg);
+    color: var(--chip-night-text);
 }
 
 #shift-calendar .shift-default {
@@ -1018,6 +1150,55 @@ tbody tr:last-child td {
     color: var(--danger);
     font-size: 12.5px;
     font-weight: 600;
+}
+
+/* =========================
+   FLASH HLÁŠKY
+   ========================= */
+
+.flash-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    margin-bottom: 20px;
+}
+
+.flash-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
+    padding: 13px 16px;
+
+    border-radius: 10px;
+    border: 1px solid;
+
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.flash-icon {
+    flex-shrink: 0;
+    line-height: 1.4;
+}
+
+.flash-error {
+    background: var(--flash-error-bg);
+    border-color: var(--flash-error-border);
+    color: var(--flash-error-text);
+}
+
+.flash-success {
+    background: var(--flash-success-bg);
+    border-color: var(--flash-success-border);
+    color: var(--flash-success-text);
+}
+
+.flash-message:not(.flash-error):not(.flash-success) {
+    background: var(--flash-error-bg);
+    border-color: var(--flash-error-border);
+    color: var(--flash-error-text);
 }
 
 .created-at {
@@ -1099,8 +1280,8 @@ tbody tr:last-child td {
    ========================= */
 
 .capacity-warning {
-    background: #fff7ed;
-    border: 2px solid #f59e0b;
+    background: var(--capacity-bg);
+    border: 2px solid var(--capacity-border);
     border-radius: 12px;
     padding: 16px 20px;
     margin-bottom: 20px;
@@ -1109,7 +1290,7 @@ tbody tr:last-child td {
 .capacity-warning h3 {
     margin: 0 0 10px 0;
     font-size: 15px;
-    color: #92400e;
+    color: var(--capacity-text);
 }
 
 .capacity-warning ul {
@@ -1119,6 +1300,44 @@ tbody tr:last-child td {
 
 .capacity-warning li {
     font-size: 13.5px;
-    color: #92400e;
+    color: var(--capacity-text);
     margin-bottom: 4px;
+}
+
+/* =========================
+   PRIHLASOVACIA STRANKA
+   ========================= */
+
+.login-page {
+    min-height: 100vh;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--bg);
+
+    padding: 20px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 380px;
+
+    background: var(--surface);
+
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+
+    padding: 36px 32px;
+}
+
+.login-logo {
+    display: block;
+    width: 100%;
+    max-width: 220px;
+    height: auto;
+
+    margin: 0 auto 28px;
 }
