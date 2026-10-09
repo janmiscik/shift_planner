@@ -52,6 +52,9 @@ def main():
     elif command == "create-manager":
         _run_create_manager(sys.argv[2] if len(sys.argv) > 2 else None)
 
+    elif command == "status":
+        _run_status()
+
     elif command == "backup":
         _run_backup()
 
@@ -133,6 +136,61 @@ def main():
     else:
         print(f"Neznámy príkaz: {command}")
         print(__doc__)
+
+
+def _run_status():
+    from pathlib import Path
+
+    import sqlalchemy as sa
+
+    from app.data.database import DEFAULT_DATABASE_PATH
+    from app.extensions import db
+    from app.web.app import create_app
+
+    db_path = Path(DEFAULT_DATABASE_PATH)
+
+    print(f"Databázový súbor: {db_path}")
+    print(f"Existuje: {'áno' if db_path.exists() else 'NIE'}")
+
+    if not db_path.exists():
+        print("Spusti najprv: python manage.py migrate")
+        return
+
+    print(f"Veľkosť: {db_path.stat().st_size / 1024:.1f} KB")
+    print()
+
+    app = create_app()
+
+    with app.app_context():
+        inspector = sa.inspect(db.engine)
+        tables = set(inspector.get_table_names())
+
+        if "alembic_version" in tables:
+            version = db.session.execute(
+                sa.text("SELECT version_num FROM alembic_version")
+            ).scalar()
+            print(f"Alembic verzia: {version}")
+        else:
+            print("Alembic verzia: ŽIADNA (schéma nie je spravovaná)")
+
+        print()
+        print("Počty záznamov:")
+
+        for table in (
+            "employees",
+            "departments",
+            "employee_departments",
+            "shifts",
+            "absences",
+            "users",
+        ):
+            if table in tables:
+                count = db.session.execute(
+                    sa.text(f"SELECT COUNT(*) FROM {table}")
+                ).scalar()
+                print(f"  {table}: {count}")
+            else:
+                print(f"  {table}: (tabuľka neexistuje)")
 
 
 def _run_create_manager(username):
@@ -230,12 +288,23 @@ def _run_restore(backup_filename):
 
 def _run_migrate():
     import sqlalchemy as sa
+    from pathlib import Path
+
     from flask_migrate import stamp, upgrade
 
     from app.data.database import DEFAULT_DATABASE_PATH
     from app.extensions import db
     from app.services.backup_service import create_backup
     from app.web.app import create_app
+
+    db_path = Path(DEFAULT_DATABASE_PATH)
+
+    # Dôležité: zisťujeme toto PRED čímkoľvek iným, čo by mohlo súbor
+    # vytvoriť (napr. samotné pripojenie cez SQLAlchemy nižšie súbor
+    # automaticky založí, keby ešte neexistoval).
+    file_existed_before = db_path.exists()
+
+    print(f"Databázový súbor: {db_path}")
 
     backup_path = create_backup(DEFAULT_DATABASE_PATH, label="pred-migraciou")
 
@@ -275,7 +344,37 @@ def _run_migrate():
             )
 
         else:
-            # Úplne nová, prázdna databáza - vytvor všetky tabuľky.
+            # Žiadne tabuľky - buď úplne nová inštalácia (súbor predtým
+            # vôbec neexistoval - bežné, netreba sa pýtať), alebo
+            # podozrivo PRÁZDNY súbor, ktorý už existoval. Druhý
+            # prípad môže znamenať, že appka mieri na nesprávny/
+            # poškodený súbor, zatiaľ čo tvoje reálne dáta sú inde -
+            # preto to vyžaduje explicitné potvrdenie.
+            if file_existed_before:
+                print()
+                print("=" * 70)
+                print("UPOZORNENIE: Súbor databázy už existoval, ale je")
+                print("úplne PRÁZDNY (žiadne tabuľky). Toto nie je bežný")
+                print("stav pre existujúcu inštaláciu appky.")
+                print()
+                print("Ak si očakával, že tu budú tvoje dáta (zamestnanci,")
+                print("zmeny...), ZASTAV a over si:")
+                print("  - či appka mieri na správny súbor (cesta vyššie),")
+                print("  - či nemáš zálohu inde na disku (napr. priečinok")
+                print("    Downloads, alebo app/data/backups/) - over cez")
+                print("    'python manage.py list-backups'.")
+                print("=" * 70)
+
+                confirmation = input(
+                    "Naozaj chceš pokračovať a vytvoriť v tomto súbore "
+                    "úplne novú, prázdnu databázu? Napíš 'ano' pre "
+                    "potvrdenie: "
+                )
+
+                if confirmation.strip().lower() != "ano":
+                    print("Zrušené - nič sa nevytvorilo/nezmenilo.")
+                    return
+
             upgrade()
             print("Databáza vytvorená od začiatku (Alembic upgrade).")
 

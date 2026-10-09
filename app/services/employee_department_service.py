@@ -70,6 +70,19 @@ def get_employee_department_ids(employee_id):
     return {department.id for department in employee.departments}
 
 
+def get_employee_department_weekly_hours(employee_id, department_id):
+    """Vráti počet hodín za týždeň pridelených zamestnancovi PRE
+    KONKRÉTNE oddelenie (jeho podiel na fonde). Vráti ``None``, ak
+    zamestnanec k tomuto oddeleniu nie je priradený."""
+
+    query = select(EmployeeDepartment.weekly_hours).where(
+        EmployeeDepartment.employee_id == employee_id,
+        EmployeeDepartment.department_id == department_id,
+    )
+
+    return db.session.execute(query).scalar_one_or_none()
+
+
 def get_employee_department(assignment_id):
     """Načíta jedno priradenie."""
 

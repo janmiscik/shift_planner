@@ -267,39 +267,64 @@ document.addEventListener("DOMContentLoaded", function () {
                 .catch((error) => failureCallback(error));
         },
         eventDrop: function (info) {
-            const start = info.event.start;
-            const end = info.event.end || start;
-
-            const pad = (n) => String(n).padStart(2, "0");
-            const shiftDate = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
-            const startTime = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
-            const endTime = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
-
-            fetch(`/api/shifts/${info.event.id}/move`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": csrfToken,
-                },
-                body: JSON.stringify({
-                    shift_date: shiftDate,
-                    start_time: startTime,
-                    end_time: endTime,
-                }),
-            })
-                .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-                .then(({ ok, data }) => {
-                    if (!ok) {
-                        alert(data.error || "Presun sa nepodarilo uložiť.");
-                        info.revert();
-                    }
-                })
-                .catch(() => {
-                    alert("Presun sa nepodarilo uložiť.");
-                    info.revert();
-                });
+            persistShiftChange(info, "Presun sa nepodarilo uložiť.");
+        },
+        eventResize: function (info) {
+            persistShiftChange(info, "Zmenu dĺžky smeny sa nepodarilo uložiť.");
         },
     });
+
+    // Spoločná logika pre presun (drag) aj zmenu dĺžky (resize) smeny -
+    // oboje sa ukladá cez rovnaký endpoint, ktorý spúšťa kompletnú
+    // validáciu (kolízie, odpočinok, fond hodín, absencie...).
+    function persistShiftChange(info, defaultErrorMessage) {
+        const start = info.event.start;
+        const end = info.event.end || start;
+
+        // Smena sa v databáze ukladá ako dátum začiatku + čas začiatku
+        // + čas konca (koniec <= začiatok znamená "nasledujúci deň"),
+        // takže nevie vyjadriť dĺžku nad 24 hodín ani nulovú/zápornú
+        // dĺžku - takýto pokus (napr. roztiahnutie nočnej smeny cez
+        // ďalší deň v mesačnom pohľade) radšej nahlas odmietneme, než
+        // aby sa potichu uložilo niečo iné, než používateľ videl.
+        const durationMs = end - start;
+        const maxDurationMs = 24 * 60 * 60 * 1000;
+
+        if (durationMs <= 0 || durationMs > maxDurationMs) {
+            alert("Smena nemôže mať nulovú ani dlhšiu než 24-hodinovú dĺžku.");
+            info.revert();
+            return;
+        }
+
+        const pad = (n) => String(n).padStart(2, "0");
+        const shiftDate = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+        const startTime = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
+        const endTime = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+
+        fetch(`/api/shifts/${info.event.id}/move`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken,
+            },
+            body: JSON.stringify({
+                shift_date: shiftDate,
+                start_time: startTime,
+                end_time: endTime,
+            }),
+        })
+            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    alert(data.error || defaultErrorMessage);
+                    info.revert();
+                }
+            })
+            .catch(() => {
+                alert(defaultErrorMessage);
+                info.revert();
+            });
+    }
 
     calendar.render();
 });

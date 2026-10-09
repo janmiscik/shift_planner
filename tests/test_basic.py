@@ -1819,6 +1819,147 @@ def test_manager_can_create_credentials_for_existing_employee(client):
     assert new_user.username == "novy_ucet"
 
 
+# ---------------------------------------------------------------------
+# Absencia vs. nočná smena, fond hodín per oddelenie, kapacita,
+# open redirect (nájdené používateľom pri reálnom používaní appky)
+# ---------------------------------------------------------------------
+
+def test_absence_blocks_night_shift_extending_into_absent_day(client):
+    from app.services.employee_service import get_employees
+
+    post(client, "/employees/add", data={
+        "first_name": "Ján", "last_name": "Test", "position": "Operátor",
+        "weekly_hours": "40", "username": "jan_noc", "password": "heslo123",
+    })
+    employee_id = get_employees()[0][0]
+
+    post(client, "/absences/add", data={
+        "employee_id": str(employee_id), "absence_type": "PN",
+        "start_date": "2026-09-22", "end_date": "2026-09-22",
+    })
+
+    response = post(client, "/shifts/add", data={
+        "employee_id": str(employee_id), "department_id": "",
+        "shift_date": "2026-09-21", "start_time": "22:00",
+        "end_time": "06:00", "shift_type": "Nočná",
+    })
+
+    from app.services.shift_service import get_shifts
+
+    assert len(get_shifts()) == 0
+    assert "schválenú neprítomnosť" in response.get_data(as_text=True)
+
+
+def test_department_specific_weekly_hours_limit(client):
+    from app.services.employee_service import get_employees
+    from app.services.department_service import get_departments
+
+    post(client, "/departments/add", data={"name": "Výroba"})
+    post(client, "/departments/add", data={"name": "Sklad"})
+    departments = get_departments()
+    vyroba_id = [d[0] for d in departments if d[1] == "Výroba"][0]
+    sklad_id = [d[0] for d in departments if d[1] == "Sklad"][0]
+
+    post(client, "/employees/add", data={
+        "first_name": "Ján", "last_name": "Test", "position": "Operátor",
+        "weekly_hours": "40", "username": "jan_dept", "password": "heslo123",
+    })
+    employee_id = get_employees()[0][0]
+
+    post(client, f"/employees/{employee_id}/departments/add",
+         data={"department_id": str(vyroba_id), "weekly_hours": "10"})
+    post(client, f"/employees/{employee_id}/departments/add",
+         data={"department_id": str(sklad_id), "weekly_hours": "30"})
+
+    post(client, "/shifts/add", data={
+        "employee_id": str(employee_id), "department_id": str(vyroba_id),
+        "shift_date": "2026-09-21", "start_time": "06:00",
+        "end_time": "14:00", "shift_type": "Ranná",
+    })
+
+    from app.services.shift_service import get_shifts
+
+    assert len(get_shifts()) == 1
+
+    response = post(client, "/shifts/add", data={
+        "employee_id": str(employee_id), "department_id": str(vyroba_id),
+        "shift_date": "2026-09-23", "start_time": "06:00",
+        "end_time": "10:00", "shift_type": "Ranná",
+    })
+
+    assert len(get_shifts()) == 1
+    assert "pre toto oddelenie" in response.get_data(as_text=True)
+
+    post(client, "/shifts/add", data={
+        "employee_id": str(employee_id), "department_id": str(sklad_id),
+        "shift_date": "2026-09-23", "start_time": "06:00",
+        "end_time": "10:00", "shift_type": "Ranná",
+    })
+
+    assert len(get_shifts()) == 2
+
+
+def test_capacity_counts_shifts_without_department_id_via_employee_fallback(
+    client,
+):
+    from app.services.employee_service import get_employees
+    from app.services.department_service import get_departments
+    from app.services.capacity_service import get_understaffed_shifts
+
+    post(client, "/departments/add", data={"name": "Výroba", "min_staff": "2"})
+    dep_id = get_departments()[0][0]
+
+    post(client, "/employees/add", data={
+        "first_name": "Eva", "last_name": "Test", "position": "Operátor",
+        "weekly_hours": "40", "username": "eva_cap", "password": "heslo123",
+    })
+    employee_id = get_employees()[0][0]
+
+    post(client, f"/employees/{employee_id}/departments/add",
+         data={"department_id": str(dep_id), "weekly_hours": "40"})
+
+    post(client, "/shifts/add", data={
+        "employee_id": str(employee_id), "department_id": "",
+        "shift_date": "2026-09-25", "start_time": "06:00",
+        "end_time": "14:00", "shift_type": "Ranná",
+    })
+
+    result = get_understaffed_shifts("2026-09-01", "2026-09-30")
+    matching = [r for r in result if r["shift_date"] == "2026-09-25"]
+
+    assert len(matching) == 1
+    assert matching[0]["scheduled"] == 1
+    assert matching[0]["min_staff"] == 2
+
+
+def test_login_next_redirect_rejects_external_url(client):
+    _logout(client)
+
+    token = _csrf_token_for(client, "/login?next=https://evil.example.com/x")
+    response = client.post(
+        "/login?next=https://evil.example.com/x",
+        data={"csrf_token": token, "username": "testmanager",
+              "password": "testpassword123"},
+        follow_redirects=False,
+    )
+
+    assert "evil.example.com" not in response.headers.get("Location", "")
+
+
+def test_login_next_redirect_allows_internal_path(client):
+    _logout(client)
+
+    token = _csrf_token_for(client, "/login?next=/employees")
+    response = client.post(
+        "/login?next=/employees",
+        data={"csrf_token": token, "username": "testmanager",
+              "password": "testpassword123"},
+        follow_redirects=False,
+    )
+
+    assert response.headers.get("Location") == "/employees"
+
+
 def test_shift_delete(client):
     employee_id, department_id = _create_employee_with_department(client)
 

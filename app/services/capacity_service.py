@@ -6,6 +6,13 @@ Porovnáva počet naplánovaných zamestnancov v rámci jedného
 existuje aspoň jedna naplánovaná smena - appka zatiaľ nemá koncept
 "očakávaných" zmien bez toho, aby ich niekto vytvoril (to by riešili
 šablóny/rotácie zmien, čo je samostatná funkcia).
+
+Smeny, ktoré nemajú priamo nastavené oddelenie (pole je nepovinné),
+sa priradia k oddeleniu podľa zamestnanca - ak je zamestnanec
+priradený práve k JEDNÉMU oddeleniu s nastaveným minimom. Ak je
+priradený k viacerým takýmto oddeleniam, nedá sa jednoznačne určiť,
+kam smena patrí, a takáto smena sa do kontroly nezapočíta (radšej
+než hádať a zavádzať).
 """
 
 from collections import defaultdict
@@ -24,6 +31,10 @@ def get_understaffed_shifts(start_date, end_date):
     Vráti zoznam slovníkov zoradený podľa dátumu a typu smeny.
     """
 
+    from app.services.employee_department_service import (
+        get_employee_department_ids,
+    )
+
     departments_with_min = db.session.execute(
         select(
             Department.id, Department.name, Department.min_staff
@@ -40,6 +51,7 @@ def get_understaffed_shifts(start_date, end_date):
         department_id: (name, min_staff)
         for department_id, name, min_staff in departments_with_min
     }
+    tracked_department_ids = set(min_staff_by_department)
 
     query = select(
         Shift.department_id,
@@ -48,15 +60,37 @@ def get_understaffed_shifts(start_date, end_date):
         Shift.employee_id,
     ).where(
         Shift.shift_date.between(start_date, end_date),
-        Shift.department_id.in_(min_staff_by_department.keys()),
     )
 
     rows = db.session.execute(query).all()
 
     grouped = defaultdict(set)
+    employee_tracked_cache = {}
 
     for department_id, shift_date, shift_type, employee_id in rows:
-        key = (department_id, shift_date, shift_type)
+        if department_id is not None:
+            if department_id not in tracked_department_ids:
+                # Smena je explicitne v inom (nesledovanom) oddelení.
+                continue
+
+            effective_department_id = department_id
+        else:
+            # Smena nemá oddelenie - určíme ho podľa zamestnanca.
+            if employee_id not in employee_tracked_cache:
+                employee_tracked_cache[employee_id] = (
+                    get_employee_department_ids(employee_id)
+                    & tracked_department_ids
+                )
+
+            candidates = employee_tracked_cache[employee_id]
+
+            if len(candidates) != 1:
+                # Žiadne alebo viac možných oddelení - nejednoznačné.
+                continue
+
+            effective_department_id = next(iter(candidates))
+
+        key = (effective_department_id, shift_date, shift_type)
         grouped[key].add(employee_id)
 
     understaffed = []

@@ -9,6 +9,7 @@ exporty) žijú v ``app/services``.
 import os
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from flask import Blueprint, Flask, flash, jsonify, redirect, render_template, request, send_file, url_for
@@ -172,6 +173,29 @@ def _active_employee_choices():
     ]
 
 
+def _is_safe_redirect_target(target):
+    """Overí, že ``next`` po prihlásení mieri len na vlastnú stránku
+    appky (relatívna cesta), nie na cudziu doménu - inak by sa dal
+    vytvoriť odkaz typu ``/login?next=https://podvodnik.sk``, ktorý by
+    po legitímnom prihlásení presmeroval používateľa na podvodnú
+    stránku (tzv. open redirect)."""
+
+    if not target or not isinstance(target, str):
+        return False
+
+    # "//domena.sk" (protocol-relative) a "/\domena.sk" (prehliadače
+    # berú spätné lomítko ako obyčajné) by mierili na cudziu doménu.
+    if not target.startswith("/") or target.startswith("//"):
+        return False
+
+    if "\\" in target:
+        return False
+
+    parsed = urlparse(target)
+
+    return not parsed.scheme and not parsed.netloc
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login_page():
     if current_user.is_authenticated:
@@ -195,7 +219,10 @@ def login_page():
 
             next_url = request.args.get("next")
 
-            return redirect(next_url or "/")
+            if _is_safe_redirect_target(next_url):
+                return redirect(next_url)
+
+            return redirect("/")
 
     return render_template("login.html", form=form)
 

@@ -220,6 +220,33 @@ def get_scheduled_hours_in_week(
     return sum(shift_duration_hours(row[0], row[1]) for row in rows)
 
 
+def get_scheduled_hours_in_week_for_department(
+    employee_id,
+    department_id,
+    shift_date,
+    exclude_shift_id=None,
+):
+    """Súčet hodín naplánovaných zamestnancovi v týždni daného dátumu,
+    ale len tých smien, ktoré majú nastavené KONKRÉTNE toto
+    oddelenie (na kontrolu fondu hodín pridelených danému
+    oddeleniu, nie celkového fondu zamestnanca)."""
+
+    monday, sunday = week_bounds(shift_date)
+
+    query = select(Shift.start_time, Shift.end_time).where(
+        Shift.employee_id == employee_id,
+        Shift.department_id == department_id,
+        Shift.shift_date.between(monday, sunday),
+    )
+
+    if exclude_shift_id is not None:
+        query = query.where(Shift.id != exclude_shift_id)
+
+    rows = db.session.execute(query).all()
+
+    return sum(shift_duration_hours(row[0], row[1]) for row in rows)
+
+
 def get_employee_weekly_hours_status(employee_id, shift_date):
     """Vráti stav týždenného fondu hodín zamestnanca pre týždeň,
     v ktorom leží ``shift_date``.
@@ -275,6 +302,7 @@ def validate_shift(
     from app.services.employee_service import get_employee
     from app.services.employee_department_service import (
         get_employee_department_ids,
+        get_employee_department_weekly_hours,
     )
     from app.services.absence_service import get_employee_absence_on_date
 
@@ -322,6 +350,16 @@ def validate_shift(
 
     absence = get_employee_absence_on_date(employee_id, shift_date)
 
+    if absence is None and end_time <= start_time:
+        # Nočná smena - kontrolujeme aj deň, do ktorého presahuje
+        # (napr. absencia platná len na "nasledujúci" deň by sa inak
+        # neodhalila, keďže smena je evidovaná pod dňom ZAČIATKU).
+        next_date = (
+            datetime.strptime(shift_date, "%Y-%m-%d") + timedelta(days=1)
+        ).strftime("%Y-%m-%d")
+
+        absence = get_employee_absence_on_date(employee_id, next_date)
+
     if absence is not None:
         errors.append(
             f"Zamestnanec má na tento deň schválenú neprítomnosť "
@@ -364,6 +402,36 @@ def validate_shift(
             errors.append(
                 "Zamestnanec nie je priradený k vybranému oddeleniu."
             )
+        else:
+            # Kontrola fondu hodín pridelených PRÁVE TOMUTO oddeleniu
+            # (nie len celkového fondu zamestnanca) - zamestnanec
+            # môže mať napr. 40 h celkovo, z toho 20 h vo Výrobe a
+            # 20 h v Sklade, a 30 h smien vo Výrobe by síce vošlo do
+            # celku, ale prekročilo by jeho podiel vo Výrobe.
+            department_limit = get_employee_department_weekly_hours(
+                employee_id, int(department_id)
+            )
+
+            if department_limit is not None:
+                department_already_scheduled = (
+                    get_scheduled_hours_in_week_for_department(
+                        employee_id,
+                        int(department_id),
+                        shift_date,
+                        exclude_shift_id=exclude_shift_id,
+                    )
+                )
+
+                if (
+                    department_already_scheduled + new_duration
+                    > float(department_limit)
+                ):
+                    errors.append(
+                        "Smena prekračuje týždenný fond hodín "
+                        "zamestnanca pre toto oddelenie "
+                        f"({department_already_scheduled + new_duration:.1f}"
+                        f" h z {float(department_limit):.1f} h)."
+                    )
 
     return errors
 
