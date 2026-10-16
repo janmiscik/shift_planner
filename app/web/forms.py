@@ -7,18 +7,37 @@ from wtforms import (
     IntegerField,
     PasswordField,
     SelectField,
+    SelectMultipleField,
     StringField,
     TimeField,
 )
 from wtforms.validators import (
     DataRequired,
+    EqualTo,
     Length,
     NumberRange,
     Optional,
 )
 
 
+class BranchForm(FlaskForm):
+    name = StringField(
+        "Názov pobočky",
+        validators=[
+            DataRequired(message="Zadaj názov pobočky."),
+            Length(max=100),
+        ],
+    )
+
+
 class EmployeeForm(FlaskForm):
+    # Pobočka sa vyberá len pri pridaní (admin). Prázdna hodnota =
+    # predvolená pobočka. Choices sa dopĺňajú v route.
+    branch_id = SelectField(
+        "Pobočka",
+        validators=[Optional()],
+        choices=[],
+    )
     first_name = StringField(
         "Meno",
         validators=[DataRequired(message="Zadaj meno."), Length(max=100)],
@@ -48,6 +67,13 @@ class EmployeeForm(FlaskForm):
 
 
 class DepartmentForm(FlaskForm):
+    # Pobočka sa vyberá len pri pridaní (admin). Prázdna hodnota =
+    # predvolená pobočka. Choices sa dopĺňajú v route.
+    branch_id = SelectField(
+        "Pobočka",
+        validators=[Optional()],
+        choices=[],
+    )
     name = StringField(
         "Názov oddelenia",
         validators=[
@@ -183,4 +209,62 @@ class CredentialsForm(FlaskForm):
     password = PasswordField(
         "Heslo",
         validators=[Optional(), Length(min=6, message="Aspoň 6 znakov.")],
+    )
+
+
+USER_ROLE_CHOICES = [
+    ("manager", "Manažér (vytvára smeny na pridelených pobočkách)"),
+    ("admin", "Administrátor (plný prístup)"),
+]
+
+
+class StaffUserForm(FlaskForm):
+    """Vytvorenie/úprava účtu admina alebo manažéra (stránka Účty).
+
+    Pri úprave je heslo nepovinné (prázdne = nemení sa) a rola sa
+    nemení. Zoznam pobočiek (``branch_ids``) sa doplňuje v route.
+    """
+
+    username = StringField(
+        "Používateľské meno",
+        validators=[
+            DataRequired(message="Zadaj používateľské meno."),
+            Length(max=80),
+        ],
+    )
+    password = PasswordField(
+        "Heslo",
+        validators=[Optional(), Length(min=6, message="Aspoň 6 znakov.")],
+    )
+    role = SelectField(
+        "Rola",
+        choices=USER_ROLE_CHOICES,
+        validators=[DataRequired(message="Vyber rolu.")],
+    )
+    branch_ids = SelectMultipleField(
+        "Pobočky",
+        coerce=int,
+        choices=[],
+        validators=[Optional()],
+    )
+
+
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField(
+        "Aktuálne heslo",
+        validators=[DataRequired(message="Zadaj aktuálne heslo.")],
+    )
+    new_password = PasswordField(
+        "Nové heslo",
+        validators=[
+            DataRequired(message="Zadaj nové heslo."),
+            Length(min=6, message="Aspoň 6 znakov."),
+        ],
+    )
+    confirm_password = PasswordField(
+        "Nové heslo znova",
+        validators=[
+            DataRequired(message="Zopakuj nové heslo."),
+            EqualTo("new_password", message="Heslá sa nezhodujú."),
+        ],
     )

@@ -26,6 +26,48 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
 
+        {% if branches %}
+
+        <div class="form-group">
+
+            <label for="branch_id">
+                Pobočka
+            </label>
+
+            <select
+                id="branch_id"
+                name="branch_id"
+                required
+            >
+
+                {% for branch in branches %}
+
+                    <option
+                        value="{{ branch[0] }}"
+                        {% if form.branch_id.data == branch[0]|string %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ branch[1] }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+            <small>
+                Pobočku už po vytvorení nie je možné zmeniť.
+            </small>
+
+            {% for error in form.branch_id.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+        {% endif %}
+
+
         <div class="form-group">
 
             <label for="name">

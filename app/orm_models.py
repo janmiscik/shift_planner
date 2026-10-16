@@ -10,12 +10,55 @@ Vzťah zamestnanec <-> oddelenie je M:N s "cez seba" tabuľkou
 oddeleniu) - nie je to teda čisté M:N, ale asociačný objekt.
 Vďaka ``association_proxy`` sa dá napriek tomu pristupovať jednoducho:
 ``employee.departments`` vráti rovno zoznam ``Department`` objektov.
+
+Pobočky: každé oddelenie a každý zamestnanec patrí práve do JEDNEJ
+pobočky (``Branch``). Smena patrí do pobočky svojho zamestnanca.
+Manažér má cez tabuľku ``user_branches`` pridelené pobočky, ktoré
+môže spravovať; admin vidí všetky pobočky.
 """
 
 from flask_login import UserMixin
 from sqlalchemy.ext.associationproxy import association_proxy
 
 from app.extensions import db
+
+ROLE_ADMIN = "admin"
+ROLE_MANAGER = "manager"
+ROLE_EMPLOYEE = "employee"
+
+# Manažér <-> pobočky, ktoré môže spravovať (M:N).
+user_branches = db.Table(
+    "user_branches",
+    db.Column(
+        "user_id",
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    db.Column(
+        "branch_id",
+        db.Integer,
+        db.ForeignKey("branches.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
+class Branch(db.Model):
+    """Pobočka - najvyššia úroveň členenia (pobočka -> oddelenia ->
+    zamestnanci -> smeny)."""
+
+    __tablename__ = "branches"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False, unique=True)
+    active = db.Column(db.Integer, nullable=False, default=1)
+
+    departments = db.relationship("Department", back_populates="branch")
+    employees = db.relationship("Employee", back_populates="branch")
+
+    def __repr__(self):
+        return f"<Branch {self.id} {self.name}>"
 
 
 class Employee(db.Model):
@@ -28,6 +71,13 @@ class Employee(db.Model):
     employment_type = db.Column(db.String, nullable=False)
     weekly_hours = db.Column(db.Float, nullable=True)
     active = db.Column(db.Integer, nullable=False, default=1)
+    branch_id = db.Column(
+        db.Integer,
+        db.ForeignKey("branches.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+
+    branch = db.relationship("Branch", back_populates="employees")
 
     shifts = db.relationship(
         "Shift",
@@ -66,11 +116,25 @@ class Employee(db.Model):
 
 class Department(db.Model):
     __tablename__ = "departments"
+    __table_args__ = (
+        # Názov oddelenia musí byť jedinečný len v rámci pobočky
+        # (každá pobočka môže mať napr. vlastnú "Pokladňu").
+        db.UniqueConstraint(
+            "branch_id", "name", name="uq_department_branch_name"
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False, unique=True)
+    name = db.Column(db.String, nullable=False)
     active = db.Column(db.Integer, nullable=False, default=1)
     min_staff = db.Column(db.Integer, nullable=True)
+    branch_id = db.Column(
+        db.Integer,
+        db.ForeignKey("branches.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+
+    branch = db.relationship("Branch", back_populates="departments")
 
     employee_links = db.relationship(
         "EmployeeDepartment",
@@ -185,9 +249,14 @@ class Absence(db.Model):
 class User(UserMixin, db.Model):
     """Prihlasovací účet.
 
-    ``role`` je buď "manager" (plný prístup) alebo "employee"
-    (prístup len na čítanie vlastného rozpisu - viazaný na
-    konkrétneho zamestnanca cez ``employee_id``).
+    ``role``:
+      - "admin"    - plný prístup (pobočky, účty, oddelenia,
+                     zamestnanci, zálohy, všetky pobočky),
+      - "manager"  - vytvára/upravuje smeny a absencie, ale len na
+                     pridelených pobočkách (``branches``),
+      - "employee" - prístup len na čítanie (vlastný rozpis,
+                     prípadne kalendár svojej pobočky) a export;
+                     viazaný na zamestnanca cez ``employee_id``.
     """
 
     __tablename__ = "users"
@@ -203,6 +272,12 @@ class User(UserMixin, db.Model):
     )
 
     employee = db.relationship("Employee", back_populates="user")
+
+    branches = db.relationship(
+        "Branch",
+        secondary=user_branches,
+        order_by="Branch.name",
+    )
 
     def __repr__(self):
         return f"<User {self.id} {self.username} ({self.role})>"

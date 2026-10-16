@@ -394,6 +394,17 @@ def validate_shift(
         )
 
     if department_id:
+        department = db.session.get(Department, int(department_id))
+
+        if (
+            department is not None
+            and employee is not None
+            and department.branch_id != employee[6]
+        ):
+            errors.append(
+                "Oddelenie patrí do inej pobočky než zamestnanec."
+            )
+
         allowed_department_ids = get_employee_department_ids(
             employee_id
         )
@@ -572,24 +583,35 @@ def _shift_base_query():
     )
 
 
-def get_shifts():
-    """Načíta všetky smeny spolu so zamestnancom a oddelením."""
+def get_shifts(branch_ids=None):
+    """Načíta smeny spolu so zamestnancom a oddelením.
+
+    ``branch_ids=None`` = všetky pobočky, zoznam obmedzí výber na
+    smeny zamestnancov z daných pobočiek.
+    """
 
     query = _shift_base_query().order_by(
         Shift.shift_date, Shift.start_time
     )
 
+    if branch_ids is not None:
+        query = query.where(Employee.branch_id.in_(list(branch_ids)))
+
     return db.session.execute(query).all()
 
 
-def get_shifts_in_range(start_date, end_date):
-    """Načíta smeny v danom dátumovom rozsahu (vrátane)."""
+def get_shifts_in_range(start_date, end_date, branch_ids=None):
+    """Načíta smeny v danom dátumovom rozsahu (vrátane); voliteľne len
+    z vybraných pobočiek."""
 
     query = (
         _shift_base_query()
         .where(Shift.shift_date.between(start_date, end_date))
         .order_by(Shift.shift_date, Shift.start_time)
     )
+
+    if branch_ids is not None:
+        query = query.where(Employee.branch_id.in_(list(branch_ids)))
 
     return db.session.execute(query).all()
 

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Účty - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Účty</h1>
+
+        <p>
+            Administrátori a manažéri. Účty zamestnancov (len na čítanie
+            vlastného rozpisu) sa spravujú na stránke zamestnanca.
+        </p>
+    </div>
+
+    <a class="btn" href="/users/add">
+        + Pridať účet
+    </a>
+
+</div>
+
+
+<div class="card">
+
+    <table>
+
+        <thead>
+
+            <tr>
+                <th>Používateľ</th>
+                <th>Rola</th>
+                <th>Pobočky</th>
+                <th>Akcie</th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            {% for user in users %}
+
+                <tr>
+
+                    <td>
+                        <strong>{{ user.username }}</strong>
+                        {% if user.id == current_user.id %}
+                            (ty)
+                        {% endif %}
+                        {% if user.employee %}
+                            <br>
+                            <small>
+                                zamestnanec:
+                                {{ user.employee.first_name }}
+                                {{ user.employee.last_name }}
+                            </small>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if user.role == "admin" %}
+                            <span class="status-active">Administrátor</span>
+                        {% else %}
+                            <span class="status-inactive">Manažér</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if user.role == "admin" %}
+                            všetky
+                        {% elif user.branches %}
+                            {{ user.branches|map(attribute="name")|join(", ") }}
+                        {% else %}
+                            — žiadna —
+                        {% endif %}
+                    </td>
+
+                    <td class="actions">
+
+                        <a
+                            class="btn btn-small"
+                            href="/users/edit/{{ user.id }}"
+                        >
+                            ✏️ Upraviť
+                        </a>
+
+                        {% if user.id != current_user.id %}
+
+                            <form
+                                method="POST"
+                                action="/users/delete/{{ user.id }}"
+                                onsubmit="return confirm('Naozaj chceš zmazať tento účet?');"
+                            >
+
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-delete btn-small"
+                                >
+                                    🗑️ Zmazať
+                                </button>
+
+                            </form>
+
+                        {% endif %}
+
+                    </td>
+
+                </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+{% endblock %}

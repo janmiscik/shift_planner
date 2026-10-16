@@ -23,26 +23,33 @@ from app.extensions import db
 from app.orm_models import Department, Shift
 
 
-def get_understaffed_shifts(start_date, end_date):
+def get_understaffed_shifts(start_date, end_date, branch_ids=None):
     """Nájde (dátum, typ smeny, oddelenie) kombinácie v danom rozsahu
     dátumov (vrátane), kde je naplánovaných menej ľudí, ako je
     nastavené minimum pre dané oddelenie.
 
-    Vráti zoznam slovníkov zoradený podľa dátumu a typu smeny.
+    ``branch_ids`` obmedzí kontrolu na oddelenia daných pobočiek
+    (``None`` = všetky). Vráti zoznam slovníkov zoradený podľa dátumu
+    a typu smeny.
     """
 
     from app.services.employee_department_service import (
         get_employee_department_ids,
     )
 
-    departments_with_min = db.session.execute(
-        select(
-            Department.id, Department.name, Department.min_staff
-        ).where(
-            Department.min_staff.isnot(None),
-            Department.min_staff > 0,
+    departments_query = select(
+        Department.id, Department.name, Department.min_staff
+    ).where(
+        Department.min_staff.isnot(None),
+        Department.min_staff > 0,
+    )
+
+    if branch_ids is not None:
+        departments_query = departments_query.where(
+            Department.branch_id.in_(list(branch_ids))
         )
-    ).all()
+
+    departments_with_min = db.session.execute(departments_query).all()
 
     if not departments_with_min:
         return []

@@ -23,8 +23,10 @@ Webová aplikácia (Flask) na plánovanie pracovných zmien zamestnancov.
   zamestnanec si svoje smeny vie naimportovať do Google Kalendára
   alebo Outlooku cez `/employees/<id>/export.ics`),
 - CSRF ochrana a backendová validácia formulárov (Flask-WTF),
-- prihlasovanie s dvomi rolami - manažér (plný prístup) a zamestnanec
-  (len na čítanie vlastného rozpisu),
+- viac pobočiek (každé oddelenie a zamestnanec patrí do jednej
+  pobočky) a tri role - administrátor (všetko), manažér (smeny a
+  absencie na pridelených pobočkách) a zamestnanec (vidí a exportuje
+  len svoje smeny),
 - tmavý/svetlý režim appky,
 - zálohovanie databázy (automaticky pred migráciou, aj ručne jedným
   klikom v appke).
@@ -50,33 +52,61 @@ Webová aplikácia (Flask) na plánovanie pracovných zmien zamestnancov.
    python manage.py migrate
    ```
 
-4. Vytvor si manažérsky účet (nutné, inak sa do appky nedostaneš):
+4. Vytvor si administrátorský účet (nutné, inak sa do appky nedostaneš):
 
    ```powershell
-   python manage.py create-manager
+   python manage.py create-admin
    ```
 
    Opýta sa na používateľské meno a heslo (heslo sa pri písaní
-   nezobrazuje).
+   nezobrazuje). Ak aktualizuješ staršiu inštaláciu, existujúci
+   manažéri sa pri migrácii automaticky stanú administrátormi (mali
+   plný prístup) a všetky dáta sa presunú do pobočky "Hlavná pobočka".
 
-## Prihlasovanie a role
+## Pobočky, prihlasovanie a role
 
-Appka teraz vyžaduje prihlásenie. Sú dve role:
+Appka vyžaduje prihlásenie. Členenie dát: **pobočka -> oddelenia ->
+zamestnanci -> smeny**. Zamestnanec patrí do jednej pobočky (po
+vytvorení sa nedá presunúť) a jeho smeny, absencie aj oddelenia sú v
+tej istej pobočke. Názov oddelenia musí byť jedinečný len v rámci
+pobočky.
 
-- **manažér** - plný prístup ku všetkému (presne to, čo appka robila
-  doteraz),
-- **zamestnanec** - prístup len na čítanie vlastného rozpisu
-  (`/my-schedule`) a exportu vlastných zmien do `.ics`. Nevidí iných
-  zamestnancov, oddelenia, ani nemôže nič upravovať.
+| Rola | Čo smie |
+|---|---|
+| **administrátor** | všetko: pobočky (`/branches`), účty adminov a manažérov (`/users`), zamestnanci, oddelenia, zálohy, všetky pobočky |
+| **manažér** | vytvára, upravuje a maže smeny a absencie, kalendár a exporty - **len na pobočkách, ktoré mu admin pridelil**. Zamestnancov a oddelenia vidí len na čítanie |
+| **zamestnanec** | len vlastný rozpis (`/my-schedule`) s exportom `.xlsx`/`.pdf`/`.ics`. Smeny ostatných nevidí |
+
+Voliteľne sa dá zamestnancom zapnúť aj kalendár svojej pobočky len na
+čítanie (`EMPLOYEES_CAN_VIEW_BRANCH_CALENDAR=1` v `.env`); predvolene je
+vypnutý.
 
 Prihlasovacie údaje pre zamestnanca sa vytvárajú **automaticky** pri
-jeho pridaní (`/employees/add`) - vyplníš mu meno/heslo priamo v tom
-istom formulári. Existujúcemu zamestnancovi bez účtu ich vieš
-dodatočne vytvoriť na jeho stránke úpravy (`/employees/edit/<id>`),
-tam si aj vieš resetovať heslo alebo účet zrušiť.
+jeho pridaní (`/employees/add`) - vyplníš mu meno/heslo a vyberieš
+pobočku priamo v tom istom formulári. Existujúcemu zamestnancovi bez
+účtu ich vieš dodatočne vytvoriť na jeho stránke úpravy
+(`/employees/edit/<id>`), tam si aj vieš resetovať heslo alebo účet
+zrušiť.
 
-Ďalších manažérov (okrem prvého) vytvoríš rovnako cez
-`python manage.py create-manager`.
+**Zamestnanec s funkciou manažéra (jeden účet):** na stránke úpravy
+zamestnanca (`/employees/edit/<id>`) je sekcia "Funkcia manažér" -
+zapneš ju a zaškrtneš pobočky, v ktorých smie plánovať smeny. Ten istý
+účet potom plánuje v týchto pobočkách a popri tom si pozerá vlastný
+rozpis (menu "Môj rozpis"). Zamestnanec musí mať prihlasovací účet.
+Funkciu môže prideliť/odobrať len admin.
+
+Čistých manažérov (bez zamestnaneckého účtu) a ďalších adminov vytvoríš
+v appke na stránke **Účty**
+(`/users`, výber pobočiek pri manažérovi sa dá kedykoľvek zmeniť),
+alebo príkazmi `python manage.py create-admin` a
+`python manage.py create-manager`. Každý si môže zmeniť vlastné heslo
+cez "Zmeniť heslo" v menu.
+
+Oprávnenia routov určujú zoznamy `_*_ALLOWED_ENDPOINTS` v
+`app/web/app.py` (pre manažéra a zamestnanca platí zoznam povolených
+routov, nová routa je teda predvolene len pre admina). Test
+`test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
+pri novej route nerozhodneš, kto ju smie používať.
 
 ## Spustenie
 
@@ -84,7 +114,10 @@ tam si aj vieš resetovať heslo alebo účet zrušiť.
 python manage.py runserver
 ```
 
-Aplikácia beží na `http://127.0.0.1:5000`.
+Aplikácia beží na `http://127.0.0.1:5000`. Premennými `HOST`, `PORT` a
+`FLASK_DEBUG` sa dá server nastaviť; pri inom hoste než localhost je
+debug vždy vypnutý (Werkzeug debugger by inak umožnil spúšťať kód).
+Pri nasadení za HTTPS nastav aj `SESSION_COOKIE_SECURE=1`.
 
 ### SECRET_KEY (produkcia)
 

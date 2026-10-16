@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if branch %}Upraviť pobočku{% else %}Pridať pobočku{% endif %} - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>{% if branch %}Upraviť pobočku{% else %}Pridať pobočku{% endif %}</h1>
+
+        <p>
+            Názov pobočky musí byť jedinečný.
+        </p>
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <form method="post">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
+        <div class="form-group">
+
+            <label for="name">
+                Názov pobočky
+            </label>
+
+            <input
+                type="text"
+                id="name"
+                name="name"
+                value="{{ form.name.data or '' }}"
+                placeholder="Napr. Košice"
+                required
+            >
+
+            {% for error in form.name.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
+                Uložiť pobočku
+            </button>
+
+            <a
+                href="/branches"
+                class="btn btn-secondary"
+            >
+                Zrušiť
+            </a>
+
+        </div>
+
+    </form>
+
+</div>
+
+{% endblock %}

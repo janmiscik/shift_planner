@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if user %}Upraviť účet{% else %}Pridať účet{% endif %} - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>{% if user %}Upraviť účet{% else %}Pridať účet{% endif %}</h1>
+
+        <p>
+            {% if user %}
+                Rola účtu sa nedá zmeniť - v prípade potreby účet zmaž a
+                vytvor nový.
+            {% else %}
+                Manažér vytvára smeny a absencie len na pobočkách, ktoré
+                mu pridelíš. Administrátor má prístup ku všetkému.
+            {% endif %}
+        </p>
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    <form method="post">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
+        <div class="form-group">
+
+            <label for="username">
+                Používateľské meno
+            </label>
+
+            <input
+                type="text"
+                id="username"
+                name="username"
+                value="{{ form.username.data or '' }}"
+                required
+            >
+
+            {% for error in form.username.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="password">
+                {% if user %}Nové heslo{% else %}Heslo{% endif %}
+            </label>
+
+            <input
+                type="password"
+                id="password"
+                name="password"
+                autocomplete="new-password"
+                {% if not user %}required{% endif %}
+            >
+
+            {% if user %}
+                <small>
+                    Nechaj prázdne, ak sa heslo nemá meniť.
+                </small>
+            {% endif %}
+
+            {% for error in form.password.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        {% if not user %}
+
+            <div class="form-group">
+
+                <label for="role">
+                    Rola
+                </label>
+
+                <select
+                    id="role"
+                    name="role"
+                    onchange="toggleBranches()"
+                    required
+                >
+
+                    {% for value, label in form.role.choices %}
+
+                        <option
+                            value="{{ value }}"
+                            {% if form.role.data == value %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ label }}
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+                {% for error in form.role.errors %}
+                    <span class="field-error">{{ error }}</span>
+                {% endfor %}
+
+            </div>
+
+        {% endif %}
+
+
+        <div
+            class="form-group"
+            id="branches-group"
+            {% if user and user.role == "admin" %}style="display: none;"{% endif %}
+        >
+
+            <label>
+                Pobočky, ktoré môže spravovať
+            </label>
+
+            {% for branch in branches %}
+
+                <div style="margin: 6px 0;">
+
+                    <label style="font-weight: normal;">
+
+                        <input
+                            type="checkbox"
+                            name="branch_ids"
+                            value="{{ branch[0] }}"
+                            {% if branch[0] in (form.branch_ids.data or []) %}
+                                checked
+                            {% endif %}
+                        >
+
+                        {{ branch[1] }}
+                        {% if not branch[2] %}(neaktívna){% endif %}
+
+                    </label>
+
+                </div>
+
+            {% endfor %}
+
+            {% for error in form.branch_ids.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
+                Uložiť účet
+            </button>
+
+            <a
+                href="/users"
+                class="btn btn-secondary"
+            >
+                Zrušiť
+            </a>
+
+        </div>
+
+    </form>
+
+</div>
+
+<script>
+    function toggleBranches() {
+        var role = document.getElementById("role");
+        var group = document.getElementById("branches-group");
+
+        if (!role || !group) {
+            return;
+        }
+
+        group.style.display = role.value === "admin" ? "none" : "";
+    }
+
+    document.addEventListener("DOMContentLoaded", toggleBranches);
+</script>
+
+{% endblock %}

@@ -1,17 +1,23 @@
-"""Služby pre prácu s oddeleniami."""
+"""Služby pre prácu s oddeleniami.
+
+Riadky oddelenia (``get_department`` / ``get_departments``) majú tvar:
+(id, názov, aktívne, min_staff, branch_id, názov pobočky).
+Názov oddelenia je jedinečný v rámci pobočky.
+"""
 
 from sqlalchemy import func, select
 
 from app.extensions import db
-from app.orm_models import Department
+from app.orm_models import Branch, Department
 
 
-def department_name_exists(name, exclude_department_id=None):
-    """Overí, či už existuje oddelenie s daným názvom (bez ohľadu na
-    veľkosť písmen)."""
+def department_name_exists(name, branch_id, exclude_department_id=None):
+    """Overí, či už v danej pobočke existuje oddelenie s daným názvom
+    (bez ohľadu na veľkosť písmen)."""
 
     query = select(Department.id).where(
-        func.lower(Department.name) == func.lower(name)
+        func.lower(Department.name) == func.lower(name),
+        Department.branch_id == branch_id,
     )
 
     if exclude_department_id is not None:
@@ -20,17 +26,24 @@ def department_name_exists(name, exclude_department_id=None):
     return db.session.execute(query).first() is not None
 
 
-def add_department(name, min_staff=None):
-    """Pridá nové oddelenie.
+def add_department(name, min_staff=None, branch_id=None):
+    """Pridá nové oddelenie do pobočky (inak do predvolenej).
 
-    Vráti ``None``, ak už oddelenie s týmto názvom existuje (namiesto
-    pádu na UNIQUE obmedzení v databáze).
+    Vráti ``None``, ak už oddelenie s týmto názvom v pobočke existuje
+    (namiesto pádu na UNIQUE obmedzení v databáze).
     """
 
-    if department_name_exists(name):
+    from app.services.branch_service import get_default_branch_id
+
+    if branch_id is None:
+        branch_id = get_default_branch_id()
+
+    if department_name_exists(name, branch_id):
         return None
 
-    department = Department(name=name, min_staff=min_staff)
+    department = Department(
+        name=name, min_staff=min_staff, branch_id=branch_id
+    )
 
     db.session.add(department)
     db.session.commit()
@@ -38,15 +51,29 @@ def add_department(name, min_staff=None):
     return department.id
 
 
-def get_departments():
-    """Načíta všetky oddelenia."""
-
-    query = select(
+def _department_columns():
+    return (
         Department.id,
         Department.name,
         Department.active,
         Department.min_staff,
-    ).order_by(Department.name)
+        Department.branch_id,
+        Branch.name,
+    )
+
+
+def get_departments(branch_ids=None):
+    """Načíta oddelenia. ``branch_ids=None`` = všetky pobočky, zoznam
+    obmedzí výber na dané pobočky."""
+
+    query = (
+        select(*_department_columns())
+        .join(Branch, Department.branch_id == Branch.id)
+        .order_by(Branch.name, Department.name)
+    )
+
+    if branch_ids is not None:
+        query = query.where(Department.branch_id.in_(list(branch_ids)))
 
     return db.session.execute(query).all()
 
@@ -54,12 +81,11 @@ def get_departments():
 def get_department(department_id):
     """Načíta jedno oddelenie."""
 
-    query = select(
-        Department.id,
-        Department.name,
-        Department.active,
-        Department.min_staff,
-    ).where(Department.id == department_id)
+    query = (
+        select(*_department_columns())
+        .join(Branch, Department.branch_id == Branch.id)
+        .where(Department.id == department_id)
+    )
 
     return db.session.execute(query).first()
 
@@ -67,15 +93,20 @@ def get_department(department_id):
 def update_department(department_id, name, min_staff=None):
     """Upraví názov a minimálny počet ľudí na zmene pre oddelenie.
 
-    Vráti ``False``, ak už iné oddelenie s týmto názvom existuje.
+    Vráti ``False``, ak už iné oddelenie v tej istej pobočke s týmto
+    názvom existuje. Pobočka oddelenia sa nemení.
     """
-
-    if department_name_exists(name, exclude_department_id=department_id):
-        return False
 
     department = db.session.get(Department, department_id)
 
     if department is None:
+        return False
+
+    if department_name_exists(
+        name,
+        department.branch_id,
+        exclude_department_id=department_id,
+    ):
         return False
 
     department.name = name

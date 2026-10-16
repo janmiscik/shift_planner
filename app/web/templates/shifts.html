@@ -18,15 +18,15 @@
 
     <div class="actions">
 
-        <a class="btn btn-secondary" href="/shifts/export.xlsx">
+        <a class="btn btn-secondary" href="/shifts/export.xlsx{% if selected_branch_id %}?branch_id={{ selected_branch_id }}{% endif %}">
             ⬇ Export .xlsx
         </a>
 
-        <a class="btn btn-secondary" href="/shifts/export.pdf">
+        <a class="btn btn-secondary" href="/shifts/export.pdf{% if selected_branch_id %}?branch_id={{ selected_branch_id }}{% endif %}">
             ⬇ Export .pdf
         </a>
 
-        <a class="btn btn-secondary" href="/shifts/export.ics">
+        <a class="btn btn-secondary" href="/shifts/export.ics{% if selected_branch_id %}?branch_id={{ selected_branch_id }}{% endif %}">
             ⬇ Export .ics
         </a>
 
@@ -38,6 +38,7 @@
 
 </div>
 
+{% include "_branch_filter.html" %}
 
 <div class="card">
 

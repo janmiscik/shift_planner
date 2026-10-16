@@ -16,9 +16,29 @@
         </p>
     </div>
 
-    <a class="btn btn-secondary" href="/my-schedule/export.ics">
-        ⬇ Export do kalendára (.ics)
-    </a>
+    <div class="actions">
+
+        {% if employees_can_view_calendar %}
+
+            <a class="btn btn-secondary" href="/calendar">
+                ▣ Kalendár pobočky
+            </a>
+
+        {% endif %}
+
+        <a class="btn btn-secondary" href="/my-schedule/export.xlsx">
+            ⬇ Export .xlsx
+        </a>
+
+        <a class="btn btn-secondary" href="/my-schedule/export.pdf">
+            ⬇ Export .pdf
+        </a>
+
+        <a class="btn btn-secondary" href="/my-schedule/export.ics">
+            ⬇ Export do kalendára (.ics)
+        </a>
+
+    </div>
 
 </div>
 

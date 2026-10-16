@@ -49,13 +49,22 @@
         </h2>
 
         <p style="color: var(--muted); margin-bottom: 24px;">
-            Táto stránka je dostupná len pre manažérov. Tvoj účet má
-            prístup len k vlastnému rozpisu.
+            Na túto stránku nemá tvoj účet prístup.
         </p>
 
-        <a href="/my-schedule" class="btn" style="width: 100%;">
-            ← Späť na môj rozpis
-        </a>
+        {% if current_user.is_authenticated and current_user.role == "employee" %}
+
+            <a href="/my-schedule" class="btn" style="width: 100%;">
+                ← Späť na môj rozpis
+            </a>
+
+        {% else %}
+
+            <a href="/" class="btn" style="width: 100%;">
+                ← Späť na dashboard
+            </a>
+
+        {% endif %}
 
     </div>
 

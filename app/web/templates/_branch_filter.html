@@ -1,0 +1,47 @@
+{# Výber pobočky (zobrazí sa len ak má používateľ prístup k viacerým).
+   Očakáva: branches, selected_branch_id; voliteľne branch_filter_hidden
+   (slovník ďalších skrytých parametrov, ktoré sa majú zachovať). #}
+{% if branches and branches|length > 1 %}
+
+    <div class="calendar-filter" style="margin-bottom: 16px;">
+
+        <form method="GET">
+
+            {% for key, value in (branch_filter_hidden or {}).items() %}
+                <input type="hidden" name="{{ key }}" value="{{ value }}">
+            {% endfor %}
+
+            <label for="branch_id">
+                Pobočka
+            </label>
+
+            <select
+                id="branch_id"
+                name="branch_id"
+                onchange="this.form.submit()"
+            >
+
+                <option value="">
+                    Všetky pobočky
+                </option>
+
+                {% for branch in branches %}
+
+                    <option
+                        value="{{ branch[0] }}"
+                        {% if selected_branch_id == branch[0] %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ branch[1] }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </form>
+
+    </div>
+
+{% endif %}

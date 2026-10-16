@@ -5,8 +5,15 @@ Použitie:
                                             # (najprv automaticky zálohuje
                                             # existujúcu databázu)
     python manage.py runserver             # spustí vývojový webový server
-    python manage.py create-manager <meno> # vytvorí manažérsky účet
+                                            # (HOST, PORT, FLASK_DEBUG sa dajú
+                                            # nastaviť premennými prostredia;
+                                            # pri inom hoste než localhost je
+                                            # debug vždy vypnutý)
+    python manage.py create-admin <meno>   # vytvorí administrátorský účet
                                             # (meno je nepovinné, opýta sa)
+    python manage.py create-manager <meno> # vytvorí manažérsky účet
+                                            # (opýta sa na pobočky, ktoré
+                                            # bude spravovať)
     python manage.py backup                # ručne zálohuje databázu
     python manage.py list-backups          # vypíše dostupné zálohy
     python manage.py restore <nazov_suboru> # obnoví databázu zo zálohy
@@ -45,12 +52,31 @@ def main():
         _run_migrate()
 
     elif command == "runserver":
+        import os
+
         from app.web.app import create_app
 
-        create_app().run(debug=True)
+        host = os.environ.get("HOST", "127.0.0.1")
+        port = int(os.environ.get("PORT", "5000"))
+
+        # Werkzeug debugger dovoľuje spúšťať kód - nikdy ho nezapíname,
+        # ak je server dostupný zo siete (iný host než localhost).
+        debug = os.environ.get("FLASK_DEBUG", "1") == "1" and host in (
+            "127.0.0.1",
+            "localhost",
+        )
+
+        create_app().run(host=host, port=port, debug=debug)
+
+    elif command == "create-admin":
+        _run_create_user(
+            sys.argv[2] if len(sys.argv) > 2 else None, "admin"
+        )
 
     elif command == "create-manager":
-        _run_create_manager(sys.argv[2] if len(sys.argv) > 2 else None)
+        _run_create_user(
+            sys.argv[2] if len(sys.argv) > 2 else None, "manager"
+        )
 
     elif command == "status":
         _run_status()
@@ -177,6 +203,7 @@ def _run_status():
         print("Počty záznamov:")
 
         for table in (
+            "branches",
             "employees",
             "departments",
             "employee_departments",
@@ -193,18 +220,64 @@ def _run_status():
                 print(f"  {table}: (tabuľka neexistuje)")
 
 
-def _run_create_manager(username):
+def _run_create_user(username, role):
+    """Vytvorí účet admina alebo manažéra (manažérovi sa pridelia
+    pobočky, ktoré bude spravovať)."""
+
     import getpass
 
-    from app.services.auth_service import create_manager
+    from app.services.auth_service import create_admin, create_manager
+    from app.services.branch_service import get_branches
     from app.web.app import create_app
 
+    label = "administrátora" if role == "admin" else "manažéra"
+
     if not username:
-        username = input("Používateľské meno pre manažéra: ").strip()
+        username = input(f"Používateľské meno pre {label}: ").strip()
 
     if not username:
         print("Používateľské meno nemôže byť prázdne.")
         return
+
+    app = create_app()
+
+    branch_ids = []
+
+    if role == "manager":
+        with app.app_context():
+            branches = get_branches()
+
+        if not branches:
+            print(
+                "Zatiaľ neexistuje žiadna pobočka. Spusti najprv "
+                "'python manage.py migrate' (vytvorí predvolenú pobočku) "
+                "alebo vytvor pobočku ako admin v appke."
+            )
+            return
+
+        print("Dostupné pobočky:")
+
+        for branch_id, name, active in branches:
+            print(f"  {branch_id}: {name}{'' if active else ' (neaktívna)'}")
+
+        raw = input(
+            "ID pobočiek, ktoré bude manažér spravovať "
+            "(oddelené čiarkou, napr. 1,2): "
+        )
+
+        try:
+            branch_ids = [
+                int(part) for part in raw.split(",") if part.strip()
+            ]
+        except ValueError:
+            print("Neplatný zoznam - zadaj len čísla oddelené čiarkou.")
+            return
+
+        valid_ids = {branch[0] for branch in branches}
+
+        if not branch_ids or not set(branch_ids) <= valid_ids:
+            print("Zadaj aspoň jedno platné ID pobočky zo zoznamu vyššie.")
+            return
 
     password = getpass.getpass("Heslo: ")
 
@@ -218,15 +291,16 @@ def _run_create_manager(username):
         print("Heslá sa nezhodujú.")
         return
 
-    app = create_app()
-
     with app.app_context():
-        user_id = create_manager(username, password)
+        if role == "admin":
+            user_id = create_admin(username, password)
+        else:
+            user_id = create_manager(username, password, branch_ids)
 
     if user_id is None:
         print(f"Používateľské meno '{username}' už existuje.")
     else:
-        print(f"Manažérsky účet '{username}' vytvorený.")
+        print(f"Účet '{username}' ({role}) vytvorený.")
 
 
 def _run_backup():

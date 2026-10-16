@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Pobočky - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Pobočky</h1>
+
+        <p>
+            Pobočky, ktoré má firma. Každé oddelenie a každý zamestnanec
+            patrí do jednej pobočky.
+        </p>
+    </div>
+
+    <a class="btn" href="/branches/add">
+        + Pridať pobočku
+    </a>
+
+</div>
+
+
+<div class="card">
+
+    {% if branches %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>ID</th>
+                    <th>Názov</th>
+                    <th>Zamestnanci</th>
+                    <th>Oddelenia</th>
+                    <th>Stav</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for branch in branches %}
+
+                    <tr>
+
+                        <td>#{{ branch[0] }}</td>
+
+                        <td>
+                            <strong>{{ branch[1] }}</strong>
+                        </td>
+
+                        <td>{{ branch[3] }}</td>
+
+                        <td>{{ branch[4] }}</td>
+
+                        <td>
+
+                            {% if branch[2] %}
+
+                                <span class="status-active">
+                                    Aktívna
+                                </span>
+
+                            {% else %}
+
+                                <span class="status-inactive">
+                                    Neaktívna
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td class="actions">
+
+                            <a
+                                class="btn btn-small"
+                                href="/branches/edit/{{ branch[0] }}"
+                            >
+                                ✏️ Upraviť
+                            </a>
+
+                            <form
+                                method="POST"
+                                action="/branches/toggle/{{ branch[0] }}"
+                                onsubmit="return confirm('Naozaj chceš zmeniť stav tejto pobočky?');"
+                            >
+
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                {% if branch[2] %}
+
+                                    <button
+                                        type="submit"
+                                        class="btn btn-warning btn-small"
+                                    >
+                                        🔴 Deaktivovať
+                                    </button>
+
+                                {% else %}
+
+                                    <button
+                                        type="submit"
+                                        class="btn btn-success btn-small"
+                                    >
+                                        🟢 Aktivovať
+                                    </button>
+
+                                {% endif %}
+
+                            </form>
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+
+            <p>
+                Zatiaľ nemáš žiadne pobočky.
+            </p>
+
+            <a class="btn" href="/branches/add">
+                Pridať prvú pobočku
+            </a>
+
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

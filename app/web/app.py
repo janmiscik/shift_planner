@@ -4,6 +4,11 @@ Táto vrstva sa stará výlučne o spracovanie HTTP požiadaviek
 (parsovanie vstupov, presmerovania, JSON odpovede). Biznis logika
 a výpočty (kolízie smien, týždenné fondy, kalendárna mriežka,
 exporty) žijú v ``app/services``.
+
+Role: admin (všetko), manager (smeny a absencie na pridelených
+pobočkách), employee (vlastný rozpis a export). Oprávnenia routov
+určujú zoznamy ``_*_ALLOWED_ENDPOINTS`` nižšie; rozsah dát podľa
+pobočiek rieši ``app/services/access_service.py``.
 """
 
 import os
@@ -20,20 +25,47 @@ from flask_login import (
     logout_user,
 )
 from flask_wtf import CSRFProtect
-from wtforms.validators import DataRequired, Length
+from wtforms.validators import DataRequired, Length, Optional
 
 from app.data.database import DEFAULT_DATABASE_PATH
 from app.extensions import db, login_manager, migrate
 
 load_dotenv()
 
+from app.orm_models import ROLE_ADMIN, ROLE_EMPLOYEE, ROLE_MANAGER
+
+from app.services.access_service import (
+    accessible_branch_ids,
+    employee_branch_id,
+    resolve_scope,
+    shift_branch_id,
+    absence_branch_id,
+)
+
+from app.services.branch_service import (
+    add_branch,
+    get_branch,
+    get_branches,
+    get_branches_with_counts,
+    get_default_branch_id,
+    set_branch_active,
+    update_branch,
+)
+
 from app.services.auth_service import (
+    change_own_password,
+    count_admins,
+    create_admin,
     create_employee_user,
+    create_manager,
     delete_user,
+    get_staff_users,
     get_user_by_employee_id,
     get_user_by_id,
     get_user_by_username,
+    set_manager_function,
     set_password,
+    set_user_branches,
     set_username,
     username_exists,
     verify_password,
@@ -105,12 +137,15 @@ from app.services.capacity_service import get_understaffed_shifts
 
 from app.web.forms import (
     AbsenceForm,
+    BranchForm,
+    ChangePasswordForm,
     CredentialsForm,
     DepartmentForm,
     EmployeeDepartmentForm,
     EmployeeForm,
     LoginForm,
     ShiftForm,
+    StaffUserForm,
 )
 
 
@@ -124,15 +159,73 @@ _DEFAULT_SECRET_KEY = "dev-docasny-kluc-zmen-v-produkcii"
 # statické súbory).
 _PUBLIC_ENDPOINTS = {"main.login_page", "static"}
 
-# Routy, na ktoré má prístup aj rola "employee" (len na čítanie
-# svojho vlastného rozpisu). Všetko ostatné je predvolene zakázané
-# pre túto rolu - nová routa sa musí explicitne pridať sem, aby k nej
-# mal zamestnanec prístup (bezpečnejšie ako opačný zoznam zákazov).
-_EMPLOYEE_ALLOWED_ENDPOINTS = {
+# Oprávnenia podľa rolí. Admin smie všetko. Pre manažéra a
+# zamestnanca platí zoznam POVOLENÝCH routov - všetko ostatné je
+# predvolene zakázané, takže nová routa je pre nich automaticky
+# neprístupná, kým ju sem niekto výslovne nepridá (bezpečnejšie ako
+# opačný zoznam zákazov).
+
+# Routy pre každého prihláseného používateľa.
+_COMMON_ENDPOINTS = {
+    "main.logout_page",
+    "main.change_password_page",
+}
+
+# Vlastný rozpis a jeho export (zamestnanec; aj manažér, ktorý je
+# zároveň zamestnancom - má jeden účet s oboma funkciami).
+_OWN_SCHEDULE_ENDPOINTS = {
     "main.my_schedule",
     "main.my_schedule_export_ics",
-    "main.logout_page",
+    "main.my_schedule_export_xlsx",
+    "main.my_schedule_export_pdf",
 }
+
+# Zamestnanec: vlastný rozpis a jeho export.
+_EMPLOYEE_ALLOWED_ENDPOINTS = _COMMON_ENDPOINTS | _OWN_SCHEDULE_ENDPOINTS
+
+# Zamestnanec: kalendár svojej pobočky len na čítanie (a jeho
+# exporty). Dá sa vypnúť cez EMPLOYEES_CAN_VIEW_BRANCH_CALENDAR=0.
+_EMPLOYEE_BRANCH_VIEW_ENDPOINTS = {
+    "main.calendar_page",
+    "main.api_shifts",
+    "main.export_calendar_xlsx",
+    "main.export_calendar_pdf",
+    "main.export_calendar_ics",
+}
+
+# Manažér: plánovanie smien a absencií na pridelených pobočkách,
+# prehľad zamestnancov a oddelení len na čítanie. Pobočky, účty,
+# zamestnancov, oddelenia a zálohy spravuje len admin.
+_MANAGER_ALLOWED_ENDPOINTS = (
+    _COMMON_ENDPOINTS
+    | _EMPLOYEE_BRANCH_VIEW_ENDPOINTS
+    | {
+        "main.home",
+        "main.employees_page",
+        "main.export_employee_shifts_ics",
+        "main.departments_page",
+        "main.shifts_page",
+        "main.export_shifts_xlsx",
+        "main.export_shifts_pdf",
+        "main.export_shifts_ics",
+        "main.add_shift_page",
+        "main.edit_shift_page",
+        "main.delete_shift_page",
+        "main.absences_page",
+        "main.add_absence_page",
+        "main.edit_absence_page",
+        "main.delete_absence_page",
+        "main.api_employee_departments",
+        "main.api_move_shift",
+    }
+)
+
+
+def _employees_can_view_branch_calendar():
+    # Predvolene VYPNUTÉ: zamestnanec vidí len svoje smeny. Zapnúť sa
+    # dá cez EMPLOYEES_CAN_VIEW_BRANCH_CALENDAR=1 (kalendár pobočky len
+    # na čítanie).
+    return os.environ.get("EMPLOYEES_CAN_VIEW_BRANCH_CALENDAR", "0") == "1"
 
 
 @login_manager.user_loader
@@ -148,29 +241,112 @@ def _require_login():
     if not current_user.is_authenticated:
         return redirect(url_for("main.login_page", next=request.path))
 
-    if (
-        current_user.role == "employee"
-        and request.endpoint not in _EMPLOYEE_ALLOWED_ENDPOINTS
-    ):
+    endpoint = request.endpoint
+
+    if endpoint is None or current_user.role == ROLE_ADMIN:
+        return None
+
+    if current_user.role == ROLE_MANAGER:
+        allowed = endpoint in _MANAGER_ALLOWED_ENDPOINTS or (
+            current_user.employee_id is not None
+            and endpoint in _OWN_SCHEDULE_ENDPOINTS
+        )
+    elif current_user.role == ROLE_EMPLOYEE:
+        allowed = endpoint in _EMPLOYEE_ALLOWED_ENDPOINTS or (
+            endpoint in _EMPLOYEE_BRANCH_VIEW_ENDPOINTS
+            and _employees_can_view_branch_calendar()
+        )
+    else:
+        allowed = False
+
+    if not allowed:
         return render_template("forbidden.html"), 403
 
     return None
 
 
-def _active_department_choices():
+@bp.app_context_processor
+def _inject_template_flags():
+    return {
+        "employees_can_view_calendar": _employees_can_view_branch_calendar(),
+    }
+
+
+def _scope():
+    """Rozsah pobočiek pre zoznamy a exporty: celý prístupný rozsah,
+    alebo jedna pobočka vybraná cez ``?branch_id=`` (ak na ňu
+    používateľ má právo). ``None`` = bez obmedzenia (admin)."""
+
+    return resolve_scope(
+        current_user, request.args.get("branch_id", type=int)
+    )
+
+
+def _selected_branch_id():
+    """Pobočka vybraná cez ``?branch_id=``, ak je platná a prístupná
+    (inak ``None`` = všetky prístupné)."""
+
+    requested = request.args.get("branch_id", type=int)
+
+    if requested is None:
+        return None
+
+    allowed = accessible_branch_ids(current_user)
+
+    if allowed is None or requested in allowed:
+        return requested
+
+    return None
+
+
+def _accessible_branches():
+    """Pobočky, ktoré smie používateľ vidieť (pre výber v UI)."""
+
+    return get_branches(accessible_branch_ids(current_user))
+
+
+def _branch_in_access(branch_id):
+    allowed = accessible_branch_ids(current_user)
+
+    return allowed is None or branch_id in allowed
+
+
+def _employee_in_access(employee_id):
+    return _branch_in_access(employee_branch_id(employee_id))
+
+
+def _active_department_choices(branch_ids=None):
     return [
         (department[0], department[1])
-        for department in get_departments()
+        for department in get_departments(branch_ids)
         if department[2]
     ]
 
 
-def _active_employee_choices():
+def _active_employee_choices(branch_ids=None):
     return [
         (employee[0], f"{employee[1]} {employee[2]} — {employee[3]}")
-        for employee in get_employees()
+        for employee in get_employees(branch_ids)
         if employee[5]
     ]
+
+
+def _branch_form_choices():
+    """Voľby pre výber pobočky vo formulároch (len aktívne pobočky;
+    prázdna hodnota = predvolená pobočka)."""
+
+    branches = get_branches(only_active=True)
+
+    return branches, [("", "")] + [
+        (str(branch[0]), branch[1]) for branch in branches
+    ]
+
+
+def _resolve_branch_id(raw_value):
+    if raw_value:
+        return int(raw_value)
+
+    return get_default_branch_id()
 
 
 def _is_safe_redirect_target(target):
@@ -236,7 +412,7 @@ def logout_page():
 
 @bp.route("/my-schedule")
 def my_schedule():
-    if current_user.role != "employee" or current_user.employee_id is None:
+    if current_user.employee_id is None:
         return redirect("/")
 
     employee = get_employee(current_user.employee_id)
@@ -253,7 +429,7 @@ def my_schedule():
 
 @bp.route("/my-schedule/export.ics")
 def my_schedule_export_ics():
-    if current_user.role != "employee" or current_user.employee_id is None:
+    if current_user.employee_id is None:
         return redirect("/")
 
     employee = get_employee(current_user.employee_id)
@@ -270,15 +446,103 @@ def my_schedule_export_ics():
     )
 
 
+def _own_schedule_or_none():
+    """(zamestnanec, smeny) prihláseného zamestnanca, inak ``None``."""
+
+    if current_user.employee_id is None:
+        return None
+
+    employee = get_employee(current_user.employee_id)
+
+    if employee is None:
+        return None
+
+    return employee, get_shifts_by_employee(current_user.employee_id)
+
+
+@bp.route("/my-schedule/export.xlsx")
+def my_schedule_export_xlsx():
+    own = _own_schedule_or_none()
+
+    if own is None:
+        return redirect("/")
+
+    employee, shifts = own
+    workbook = build_shifts_workbook(
+        shifts, title=f"Moje smeny - {employee[1]} {employee[2]}"
+    )
+
+    return send_file(
+        workbook,
+        as_attachment=True,
+        download_name=f"moje_smeny_{employee[1]}_{employee[2]}.xlsx",
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument"
+            ".spreadsheetml.sheet"
+        ),
+    )
+
+
+@bp.route("/my-schedule/export.pdf")
+def my_schedule_export_pdf():
+    own = _own_schedule_or_none()
+
+    if own is None:
+        return redirect("/")
+
+    employee, shifts = own
+    pdf = build_shifts_pdf(
+        shifts,
+        title=f"Moje smeny - {employee[1]} {employee[2]}",
+    )
+
+    return send_file(
+        pdf,
+        as_attachment=True,
+        download_name=f"moje_smeny_{employee[1]}_{employee[2]}.pdf",
+        mimetype="application/pdf",
+    )
+
+
+@bp.route("/account/password", methods=["GET", "POST"])
+def change_password_page():
+    """Zmena vlastného hesla (každá rola)."""
+
+    form = ChangePasswordForm()
+
+    if form.validate_on_submit():
+        changed = change_own_password(
+            current_user.id,
+            form.current_password.data,
+            form.new_password.data,
+        )
+
+        if changed:
+            flash("Heslo bolo zmenené.", "success")
+
+            if current_user.role == ROLE_EMPLOYEE:
+                return redirect("/my-schedule")
+
+            return redirect("/")
+
+        flash("Aktuálne heslo nie je správne.", "error")
+
+    return render_template("change_password.html", form=form)
+
+
 @bp.route("/")
 def home():
-    employees = get_employees()
-    shifts = get_shifts()
+    scope = _scope()
+
+    employees = get_employees(scope)
+    shifts = get_shifts(scope)
 
     return render_template(
         "dashboard.html",
         employees=employees,
         shifts=shifts,
+        branches=_accessible_branches(),
+        selected_branch_id=_selected_branch_id(),
     )
 
 
@@ -313,14 +577,20 @@ def admin_backup():
 
 @bp.route("/employees")
 def employees_page():
-    employees = get_employees()
+    employees = get_employees(_scope())
 
-    return render_template("employees.html", employees=employees)
+    return render_template(
+        "employees.html",
+        employees=employees,
+        branches=_accessible_branches(),
+        selected_branch_id=_selected_branch_id(),
+    )
 
 
 @bp.route("/employees/add", methods=["GET", "POST"])
 def add_employee_page():
     form = EmployeeForm()
+    branches, form.branch_id.choices = _branch_form_choices()
     credentials_form = CredentialsForm(meta={"csrf": False})
     credentials_form.password.validators = [
         DataRequired(message="Zadaj heslo."),
@@ -333,11 +603,24 @@ def add_employee_page():
         if credentials_valid and username_exists(credentials_form.username.data):
             flash("Toto používateľské meno už niekto používa.", "error")
         elif credentials_valid:
+            branch_id = _resolve_branch_id(form.branch_id.data)
+
+            if branch_id is None:
+                flash("Nie je dostupná žiadna aktívna pobočka.", "error")
+
+                return render_template(
+                    "add_employee.html",
+                    form=form,
+                    credentials_form=credentials_form,
+                    branches=branches,
+                )
+
             employee_id = add_employee(
                 form.first_name.data,
                 form.last_name.data,
                 form.position.data,
                 form.weekly_hours.data,
+                branch_id=branch_id,
             )
 
             create_employee_user(
@@ -352,6 +635,7 @@ def add_employee_page():
         "add_employee.html",
         form=form,
         credentials_form=credentials_form,
+        branches=branches,
     )
 
 
@@ -391,6 +675,7 @@ def edit_employee_page(employee_id):
                 employee_user=employee_user,
                 credentials_form=credentials_form,
                 form=form,
+                branches=get_branches(),
             )
 
         update_employee(
@@ -411,7 +696,55 @@ def edit_employee_page(employee_id):
         employee_user=employee_user,
         credentials_form=credentials_form,
         form=form,
+        branches=get_branches(),
     )
+
+
+@bp.route(
+    "/employees/<int:employee_id>/manager",
+    methods=["POST"],
+)
+def update_employee_manager_page(employee_id):
+    """Pridelí/odoberie zamestnancovi funkciu manažéra (jeden účet) a
+    určí pobočky, v ktorých smie plánovať smeny. Len admin."""
+
+    employee = get_employee(employee_id)
+
+    if employee is None:
+        return "Zamestnanec neexistuje.", 404
+
+    if get_user_by_employee_id(employee_id) is None:
+        flash(
+            "Najprv vytvor zamestnancovi prihlasovací účet.", "error"
+        )
+
+        return redirect(f"/employees/edit/{employee_id}")
+
+    enabled = request.form.get("manager_enabled") == "1"
+
+    valid_branch_ids = {branch[0] for branch in get_branches()}
+    branch_ids = []
+
+    for raw in request.form.getlist("branch_ids"):
+        if raw.isdigit() and int(raw) in valid_branch_ids:
+            branch_ids.append(int(raw))
+
+    if enabled and not branch_ids:
+        flash(
+            "Manažér musí mať priradenú aspoň jednu pobočku.", "error"
+        )
+
+        return redirect(f"/employees/edit/{employee_id}")
+
+    set_manager_function(employee_id, enabled, branch_ids)
+
+    flash(
+        "Zamestnanec je teraz manažér." if enabled
+        else "Funkcia manažéra bola zamestnancovi odobratá.",
+        "success",
+    )
+
+    return redirect(f"/employees/edit/{employee_id}")
 
 
 @bp.route(
@@ -485,7 +818,7 @@ def update_employee_credentials_page(employee_id):
         if form.password.data:
             set_password(employee_user.id, form.password.data)
 
-        flash("Prihlasovacie údaje boli aktualizované.", "error")
+        flash("Prihlasovacie údaje boli aktualizované.", "success")
 
     return redirect(f"/employees/edit/{employee_id}")
 
@@ -513,15 +846,19 @@ def add_employee_department_page(employee_id):
     if employee is None:
         return "Zamestnanec neexistuje.", 404
 
-    departments = get_departments()
+    departments = get_departments([employee[6]])
 
     form = EmployeeDepartmentForm()
-    form.department_id.choices = _active_department_choices()
+    form.department_id.choices = _active_department_choices([employee[6]])
 
     if form.validate_on_submit():
         department = get_department(form.department_id.data)
 
-        if department is None or not department[2]:
+        if (
+            department is None
+            or not department[2]
+            or department[4] != employee[6]
+        ):
             flash(
                 "Neaktívne oddelenie nie je možné priradiť zamestnancovi.",
                 "error",
@@ -590,10 +927,10 @@ def edit_employee_department_page(employee_id, assignment_id):
     if assignment[1] != employee_id:
         return "Priradenie nepatrí tomuto zamestnancovi.", 404
 
-    departments = get_departments()
+    departments = get_departments([employee[6]])
 
     form = EmployeeDepartmentForm()
-    form.department_id.choices = _active_department_choices()
+    form.department_id.choices = _active_department_choices([employee[6]])
 
     if request.method == "GET":
         form.department_id.data = assignment[2]
@@ -602,7 +939,11 @@ def edit_employee_department_page(employee_id, assignment_id):
     if form.validate_on_submit():
         department = get_department(form.department_id.data)
 
-        if department is None or not department[2]:
+        if (
+            department is None
+            or not department[2]
+            or department[4] != employee[6]
+        ):
             flash(
                 "Neaktívne oddelenie nie je možné priradiť zamestnancovi.",
                 "error",
@@ -673,7 +1014,7 @@ def delete_employee_department_page(employee_id, assignment_id):
 def export_employee_shifts_ics(employee_id):
     employee = get_employee(employee_id)
 
-    if employee is None:
+    if employee is None or not _branch_in_access(employee[6]):
         return "Zamestnanec neexistuje.", 404
 
     shifts = get_shifts_by_employee(employee_id)
@@ -708,25 +1049,52 @@ def toggle_employee_page(employee_id):
 
 @bp.route("/departments")
 def departments_page():
-    departments = get_departments()
+    departments = get_departments(_scope())
 
-    return render_template("departments.html", departments=departments)
+    return render_template(
+        "departments.html",
+        departments=departments,
+        branches=_accessible_branches(),
+        selected_branch_id=_selected_branch_id(),
+    )
 
 
 @bp.route("/departments/add", methods=["GET", "POST"])
 def add_department_page():
     form = DepartmentForm()
+    branches, form.branch_id.choices = _branch_form_choices()
 
     if form.validate_on_submit():
-        department_id = add_department(form.name.data, form.min_staff.data)
+        branch_id = _resolve_branch_id(form.branch_id.data)
+
+        if branch_id is None:
+            flash("Nie je dostupná žiadna aktívna pobočka.", "error")
+
+            return render_template(
+                "add_department.html", form=form, branches=branches
+            )
+
+        department_id = add_department(
+            form.name.data,
+            form.min_staff.data,
+            branch_id=branch_id,
+        )
 
         if department_id is None:
-            flash("Oddelenie s týmto názvom už existuje.", "error")
-            return render_template("add_department.html", form=form)
+            flash(
+                "Oddelenie s týmto názvom už existuje v tejto pobočke.",
+                "error",
+            )
+
+            return render_template(
+                "add_department.html", form=form, branches=branches
+            )
 
         return redirect("/departments")
 
-    return render_template("add_department.html", form=form)
+    return render_template(
+        "add_department.html", form=form, branches=branches
+    )
 
 
 @bp.route("/departments/edit/<int:department_id>", methods=["GET", "POST"])
@@ -748,7 +1116,10 @@ def edit_department_page(department_id):
         )
 
         if not updated:
-            flash("Oddelenie s týmto názvom už existuje.", "error")
+            flash(
+                "Oddelenie s týmto názvom už existuje v tejto pobočke.",
+                "error",
+            )
 
             return render_template(
                 "edit_department.html",
@@ -784,14 +1155,19 @@ def toggle_department_page(department_id):
 
 @bp.route("/shifts")
 def shifts_page():
-    shifts = get_shifts()
+    shifts = get_shifts(_scope())
 
-    return render_template("shifts.html", shifts=shifts)
+    return render_template(
+        "shifts.html",
+        shifts=shifts,
+        branches=_accessible_branches(),
+        selected_branch_id=_selected_branch_id(),
+    )
 
 
 @bp.route("/shifts/export.xlsx")
 def export_shifts_xlsx():
-    shifts = get_shifts()
+    shifts = get_shifts(_scope())
     workbook = build_shifts_workbook(shifts, title="Všetky smeny")
 
     return send_file(
@@ -807,7 +1183,7 @@ def export_shifts_xlsx():
 
 @bp.route("/shifts/export.pdf")
 def export_shifts_pdf():
-    shifts = get_shifts()
+    shifts = get_shifts(_scope())
     pdf = build_shifts_pdf(shifts, title="Harmonogram smien - všetky")
 
     return send_file(
@@ -820,7 +1196,7 @@ def export_shifts_pdf():
 
 @bp.route("/shifts/export.ics")
 def export_shifts_ics():
-    shifts = get_shifts()
+    shifts = get_shifts(_scope())
     ics = build_shifts_ics(shifts, calendar_name="Shift Planner - všetky smeny")
 
     return send_file(
@@ -833,12 +1209,15 @@ def export_shifts_ics():
 
 @bp.route("/shifts/add", methods=["GET", "POST"])
 def add_shift_page():
-    employees = get_employees()
+    access = accessible_branch_ids(current_user)
+
+    employees = get_employees(access)
 
     form = ShiftForm()
-    form.employee_id.choices = _active_employee_choices()
+    form.employee_id.choices = _active_employee_choices(access)
     form.department_id.choices = [("", "-- Bez oddelenia --")] + [
-        (str(dep_id), name) for dep_id, name in _active_department_choices()
+        (str(dep_id), name)
+        for dep_id, name in _active_department_choices(access)
     ]
 
     if request.method == "GET":
@@ -918,15 +1297,19 @@ def add_shift_page():
 @bp.route("/shifts/edit/<int:shift_id>", methods=["GET", "POST"])
 def edit_shift_page(shift_id):
     shift = get_shift(shift_id)
-    employees = get_employees()
 
-    if shift is None:
+    if shift is None or not _employee_in_access(shift[1]):
         return "Smena neexistuje.", 404
 
+    access = accessible_branch_ids(current_user)
+
+    employees = get_employees(access)
+
     form = ShiftForm()
-    form.employee_id.choices = _active_employee_choices()
+    form.employee_id.choices = _active_employee_choices(access)
     form.department_id.choices = [("", "-- Bez oddelenia --")] + [
-        (str(dep_id), name) for dep_id, name in _active_department_choices()
+        (str(dep_id), name)
+        for dep_id, name in _active_department_choices(access)
     ]
 
     if request.method == "GET":
@@ -987,6 +1370,9 @@ def edit_shift_page(shift_id):
 
 @bp.route("/shifts/delete/<int:shift_id>", methods=["POST"])
 def delete_shift_page(shift_id):
+    if not _branch_in_access(shift_branch_id(shift_id)):
+        return "Smena neexistuje.", 404
+
     delete_shift(shift_id)
 
     return redirect("/shifts")
@@ -999,28 +1385,36 @@ def delete_shift_page(shift_id):
 @bp.route("/absences")
 def absences_page():
     employee_id = request.args.get("employee_id", type=int)
+    scope = _scope()
 
     if employee_id:
-        absences = get_absences_by_employee(employee_id)
+        if _employee_in_access(employee_id):
+            absences = get_absences_by_employee(employee_id)
+        else:
+            absences = []
     else:
-        absences = get_absences()
+        absences = get_absences(scope)
 
-    employees = get_employees()
+    employees = get_employees(scope)
 
     return render_template(
         "absences.html",
         absences=absences,
         employees=employees,
         selected_employee_id=employee_id,
+        branches=_accessible_branches(),
+        selected_branch_id=_selected_branch_id(),
     )
 
 
 @bp.route("/absences/add", methods=["GET", "POST"])
 def add_absence_page():
-    employees = get_employees()
+    access = accessible_branch_ids(current_user)
+
+    employees = get_employees(access)
 
     form = AbsenceForm()
-    form.employee_id.choices = _active_employee_choices()
+    form.employee_id.choices = _active_employee_choices(access)
 
     if request.method == "GET":
         preselected_employee_id = request.args.get("employee_id", type=int)
@@ -1083,13 +1477,15 @@ def add_absence_page():
 def edit_absence_page(absence_id):
     absence = get_absence(absence_id)
 
-    if absence is None:
+    if absence is None or not _employee_in_access(absence[1]):
         return "Neprítomnosť neexistuje.", 404
 
-    employees = get_employees()
+    access = accessible_branch_ids(current_user)
+
+    employees = get_employees(access)
 
     form = AbsenceForm()
-    form.employee_id.choices = _active_employee_choices()
+    form.employee_id.choices = _active_employee_choices(access)
 
     if request.method == "GET":
         form.employee_id.data = absence[1]
@@ -1136,6 +1532,9 @@ def edit_absence_page(absence_id):
 
 @bp.route("/absences/delete/<int:absence_id>", methods=["POST"])
 def delete_absence_page(absence_id):
+    if not _branch_in_access(absence_branch_id(absence_id)):
+        return "Neprítomnosť neexistuje.", 404
+
     delete_absence(absence_id)
 
     return redirect("/absences")
@@ -1154,13 +1553,20 @@ def calendar_page():
     employee_id = request.args.get("employee_id", type=int)
     department_id = request.args.get("department_id", type=int)
 
-    employees = get_employees()
-    departments = get_departments()
+    scope = _scope()
+
+    employees = get_employees(scope)
+    departments = get_departments(scope)
 
     calendar_days = build_calendar_days(year, month)
 
     first_day, last_day = month_bounds(year, month)
-    understaffed_shifts = get_understaffed_shifts(first_day, last_day)
+    understaffed_shifts = get_understaffed_shifts(
+        first_day, last_day, scope
+    )
+
+    if current_user.role == ROLE_EMPLOYEE:
+        understaffed_shifts = []
 
     return render_template(
         "calendar.html",
@@ -1172,6 +1578,9 @@ def calendar_page():
         selected_employee_id=employee_id,
         selected_department_id=department_id,
         understaffed_shifts=understaffed_shifts,
+        branches=_accessible_branches(),
+        selected_branch_id=_selected_branch_id(),
+        read_only=current_user.role == ROLE_EMPLOYEE,
     )
 
 
@@ -1183,7 +1592,7 @@ def export_calendar_xlsx():
     month = request.args.get("month", today.month, type=int)
 
     first_day, last_day = month_bounds(year, month)
-    shifts = get_shifts_in_range(first_day, last_day)
+    shifts = get_shifts_in_range(first_day, last_day, _scope())
 
     workbook = build_shifts_workbook(
         shifts,
@@ -1209,7 +1618,7 @@ def export_calendar_pdf():
     month = request.args.get("month", today.month, type=int)
 
     first_day, last_day = month_bounds(year, month)
-    shifts = get_shifts_in_range(first_day, last_day)
+    shifts = get_shifts_in_range(first_day, last_day, _scope())
 
     pdf = build_shifts_pdf(
         shifts,
@@ -1232,7 +1641,7 @@ def export_calendar_ics():
     month = request.args.get("month", today.month, type=int)
 
     first_day, last_day = month_bounds(year, month)
-    shifts = get_shifts_in_range(first_day, last_day)
+    shifts = get_shifts_in_range(first_day, last_day, _scope())
 
     ics = build_shifts_ics(
         shifts,
@@ -1253,6 +1662,9 @@ def export_calendar_ics():
 
 @bp.route("/api/employees/<int:employee_id>/departments")
 def api_employee_departments(employee_id):
+    if not _employee_in_access(employee_id):
+        return jsonify([]), 404
+
     assignments = get_employee_departments(employee_id)
 
     return jsonify(
@@ -1291,7 +1703,7 @@ def api_shifts():
         month = request.args.get("month", today.month, type=int)
         first_day, last_day = month_bounds(year, month)
 
-    shifts = get_shifts_in_range(first_day, last_day)
+    shifts = get_shifts_in_range(first_day, last_day, _scope())
 
     if employee_id:
         shifts = [
@@ -1301,7 +1713,20 @@ def api_shifts():
     if department_id:
         shifts = filter_shifts_by_department(shifts, department_id)
 
-    return jsonify(shifts_to_fullcalendar_events(shifts))
+    events = shifts_to_fullcalendar_events(shifts)
+
+    if current_user.role == ROLE_EMPLOYEE:
+        # Zamestnanec vidí rozpis pobočky, ale nie stav týždenných
+        # fondov hodín kolegov.
+        for event in events:
+            event["extendedProps"]["weeklyHours"] = None
+            event["className"] = " ".join(
+                name
+                for name in event["className"].split()
+                if not name.startswith("hours-")
+            )
+
+    return jsonify(events)
 
 
 @bp.route("/api/shifts/<int:shift_id>/move", methods=["POST"])
@@ -1312,7 +1737,7 @@ def api_move_shift(shift_id):
 
     shift = get_shift(shift_id)
 
-    if shift is None:
+    if shift is None or not _employee_in_access(shift[1]):
         return jsonify({"error": "Smena neexistuje."}), 404
 
     new_date = payload.get("shift_date", shift[2])
@@ -1334,6 +1759,203 @@ def api_move_shift(shift_id):
     move_shift(shift_id, new_date, new_start, new_end)
 
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------
+# Pobočky (len admin)
+# ---------------------------------------------------------------------
+
+@bp.route("/branches")
+def branches_page():
+    return render_template(
+        "branches.html", branches=get_branches_with_counts()
+    )
+
+
+@bp.route("/branches/add", methods=["GET", "POST"])
+def add_branch_page():
+    form = BranchForm()
+
+    if form.validate_on_submit():
+        branch_id = add_branch(form.name.data.strip())
+
+        if branch_id is None:
+            flash("Pobočka s týmto názvom už existuje.", "error")
+        else:
+            flash("Pobočka bola pridaná.", "success")
+
+            return redirect("/branches")
+
+    return render_template("branch_form.html", form=form, branch=None)
+
+
+@bp.route("/branches/edit/<int:branch_id>", methods=["GET", "POST"])
+def edit_branch_page(branch_id):
+    branch = get_branch(branch_id)
+
+    if branch is None:
+        return "Pobočka neexistuje.", 404
+
+    form = BranchForm()
+
+    if request.method == "GET":
+        form.name.data = branch[1]
+
+    if form.validate_on_submit():
+        if update_branch(branch_id, form.name.data.strip()):
+            flash("Pobočka bola upravená.", "success")
+
+            return redirect("/branches")
+
+        flash("Pobočka s týmto názvom už existuje.", "error")
+
+    return render_template("branch_form.html", form=form, branch=branch)
+
+
+@bp.route("/branches/toggle/<int:branch_id>", methods=["POST"])
+def toggle_branch_page(branch_id):
+    branch = get_branch(branch_id)
+
+    if branch is None:
+        return "Pobočka neexistuje.", 404
+
+    if branch[2]:
+        active_branches = get_branches(only_active=True)
+
+        if len(active_branches) <= 1:
+            flash(
+                "Nedá sa deaktivovať poslednú aktívnu pobočku.",
+                "error",
+            )
+
+            return redirect("/branches")
+
+    set_branch_active(branch_id, 0 if branch[2] else 1)
+
+    return redirect("/branches")
+
+
+# ---------------------------------------------------------------------
+# Účty adminov a manažérov (len admin)
+# ---------------------------------------------------------------------
+
+def _staff_user_or_none(user_id):
+    user = get_user_by_id(user_id)
+
+    if user is None or user.role not in (ROLE_ADMIN, ROLE_MANAGER):
+        return None
+
+    return user
+
+
+@bp.route("/users")
+def users_page():
+    return render_template("users.html", users=get_staff_users())
+
+
+@bp.route("/users/add", methods=["GET", "POST"])
+def add_user_page():
+    form = StaffUserForm()
+    branches = get_branches()
+    form.branch_ids.choices = [(branch[0], branch[1]) for branch in branches]
+    form.password.validators = [
+        DataRequired(message="Zadaj heslo."),
+        Length(min=6, message="Heslo musí mať aspoň 6 znakov."),
+    ]
+
+    if form.validate_on_submit():
+        username = form.username.data.strip()
+        role = form.role.data
+
+        if username_exists(username):
+            flash("Toto používateľské meno už niekto používa.", "error")
+        elif role == ROLE_MANAGER and not form.branch_ids.data:
+            flash(
+                "Manažér musí mať priradenú aspoň jednu pobočku.", "error"
+            )
+        else:
+            if role == ROLE_ADMIN:
+                create_admin(username, form.password.data)
+            else:
+                create_manager(
+                    username, form.password.data, form.branch_ids.data
+                )
+
+            flash("Účet bol vytvorený.", "success")
+
+            return redirect("/users")
+
+    return render_template(
+        "user_form.html", form=form, user=None, branches=branches
+    )
+
+
+@bp.route("/users/edit/<int:user_id>", methods=["GET", "POST"])
+def edit_user_page(user_id):
+    user = _staff_user_or_none(user_id)
+
+    if user is None:
+        return "Účet neexistuje.", 404
+
+    form = StaffUserForm()
+    branches = get_branches()
+    form.branch_ids.choices = [(branch[0], branch[1]) for branch in branches]
+    # Rola sa pri úprave nemení (formulár ju neposiela).
+    form.role.validators = [Optional()]
+
+    if request.method == "GET":
+        form.username.data = user.username
+        form.role.data = user.role
+        form.branch_ids.data = [branch.id for branch in user.branches]
+
+    if form.validate_on_submit():
+        username = form.username.data.strip()
+
+        if username_exists(username, exclude_user_id=user.id):
+            flash("Toto používateľské meno už niekto používa.", "error")
+        elif user.role == ROLE_MANAGER and not form.branch_ids.data:
+            flash(
+                "Manažér musí mať priradenú aspoň jednu pobočku.", "error"
+            )
+        else:
+            set_username(user.id, username)
+
+            if form.password.data:
+                set_password(user.id, form.password.data)
+
+            if user.role == ROLE_MANAGER:
+                set_user_branches(user.id, form.branch_ids.data)
+
+            flash("Účet bol upravený.", "success")
+
+            return redirect("/users")
+
+    return render_template(
+        "user_form.html", form=form, user=user, branches=branches
+    )
+
+
+@bp.route("/users/delete/<int:user_id>", methods=["POST"])
+def delete_user_page(user_id):
+    user = _staff_user_or_none(user_id)
+
+    if user is None:
+        return "Účet neexistuje.", 404
+
+    if user.id == current_user.id:
+        flash("Vlastný účet nemôžeš zmazať.", "error")
+
+        return redirect("/users")
+
+    if user.role == ROLE_ADMIN and count_admins() <= 1:
+        flash("Nedá sa zmazať posledného administrátora.", "error")
+
+        return redirect("/users")
+
+    delete_user(user.id)
+    flash("Účet bol zmazaný.", "success")
+
+    return redirect("/users")
 
 
 def create_app(database_path=None):
@@ -1364,6 +1986,14 @@ def create_app(database_path=None):
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{resolved_path}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+    # Bezpečnejšie session cookie. Za HTTPS (pri nasadení pre
+    # pobočky) nastav SESSION_COOKIE_SECURE=1.
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SECURE"] = (
+        os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
+    )
+
     migrations_dir = Path(__file__).resolve().parent.parent.parent / "migrations"
 
     db.init_app(app)
@@ -1381,4 +2011,4 @@ def create_app(database_path=None):
 
 
 if __name__ == "__main__":
-    create_app().run(debug=True)
+    create_app().run(debug=os.environ.get("FLASK_DEBUG") == "1")

@@ -13,6 +13,7 @@
 
         <p>
             Úprava údajov a pracovného zaradenia zamestnanca
+            — pobočka: <strong>{{ employee[7] }}</strong>
         </p>
     </div>
 
@@ -333,6 +334,88 @@
     </div>
 
 </div>
+
+
+{% if employee_user %}
+
+<div class="card" style="margin-top: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Funkcia manažér
+    </h3>
+
+    <p style="color: var(--muted); font-size: 13px;">
+        Ak je zapnutá, tento zamestnanec môže popri vlastnom rozpise
+        vytvárať a upravovať smeny a absencie v zaškrtnutých pobočkách.
+        Používa na to ten istý účet.
+    </p>
+
+    <form method="POST" action="/employees/{{ employee[0] }}/manager">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+
+            <label style="font-weight: normal;">
+
+                <input
+                    type="checkbox"
+                    name="manager_enabled"
+                    value="1"
+                    {% if employee_user.role == "manager" %}checked{% endif %}
+                >
+
+                Je manažér (plánuje smeny)
+
+            </label>
+
+        </div>
+
+        <div class="form-group">
+
+            <label>
+                Pobočky, v ktorých smie plánovať
+            </label>
+
+            {% set managed_ids = employee_user.branches | map(attribute="id") | list %}
+
+            {% for branch in branches %}
+
+                <div style="margin: 6px 0;">
+
+                    <label style="font-weight: normal;">
+
+                        <input
+                            type="checkbox"
+                            name="branch_ids"
+                            value="{{ branch[0] }}"
+                            {% if branch[0] in managed_ids %}checked{% endif %}
+                        >
+
+                        {{ branch[1] }}
+                        {% if not branch[2] %}(neaktívna){% endif %}
+
+                    </label>
+
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+        <div class="actions">
+
+            <button type="submit">
+                Uložiť funkciu manažéra
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
+
+{% endif %}
 
 
 <div class="card" style="margin-top: 20px;">

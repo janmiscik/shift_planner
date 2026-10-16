@@ -16,11 +16,17 @@
         </p>
     </div>
 
-    <a class="btn" href="/employees/add">
-        + Pridať zamestnanca
-    </a>
+    {% if current_user.role == "admin" %}
+
+        <a class="btn" href="/employees/add">
+            + Pridať zamestnanca
+        </a>
+
+    {% endif %}
 
 </div>
+
+{% include "_branch_filter.html" %}
 
 
 <div class="card">
@@ -36,8 +42,13 @@
                     <th>Meno</th>
                     <th>Pozícia</th>
                     <th>Fond / týždeň</th>
+                    {% if branches|length > 1 %}
+                        <th>Pobočka</th>
+                    {% endif %}
                     <th>Stav</th>
-                    <th>Akcie</th>
+                    {% if current_user.role == "admin" %}
+                        <th>Akcie</th>
+                    {% endif %}
                 </tr>
 
             </thead>
@@ -66,6 +77,10 @@
                             {{ employee[4] if employee[4] is not none else "—" }} h
                         </td>
 
+                        {% if branches|length > 1 %}
+                            <td>{{ employee[7] }}</td>
+                        {% endif %}
+
                         <td>
 
                             {% if employee[5] %}
@@ -84,6 +99,7 @@
 
                         </td>
 
+                        {% if current_user.role == "admin" %}
                         <td class="actions">
 
                             <a
@@ -125,6 +141,7 @@
                             </form>
 
                         </td>
+                        {% endif %}
 
                     </tr>
 
@@ -142,9 +159,13 @@
                 Zatiaľ nemáš žiadnych zamestnancov.
             </p>
 
-            <a class="btn" href="/employees/add">
-                Pridať prvého zamestnanca
-            </a>
+            {% if current_user.role == "admin" %}
+
+                <a class="btn" href="/employees/add">
+                    Pridať prvého zamestnanca
+                </a>
+
+            {% endif %}
 
         </div>
 

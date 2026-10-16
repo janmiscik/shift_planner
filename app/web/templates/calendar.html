@@ -12,8 +12,12 @@
         <h1>Kalendár</h1>
 
         <p>
-            Prehľad naplánovaných smien podľa dní. Smenu presunieš
-            jednoduchým pretiahnutím (drag-and-drop).
+            {% if read_only %}
+                Prehľad naplánovaných smien tvojej pobočky (len na čítanie).
+            {% else %}
+                Prehľad naplánovaných smien podľa dní. Smenu presunieš
+                jednoduchým pretiahnutím (drag-and-drop).
+            {% endif %}
         </p>
     </div>
 
@@ -21,31 +25,35 @@
 
         <a
             class="btn btn-secondary"
-            href="/calendar/export.xlsx?year={{ year }}&month={{ month }}"
+            href="/calendar/export.xlsx?year={{ year }}&month={{ month }}{% if selected_branch_id %}&branch_id={{ selected_branch_id }}{% endif %}"
         >
             ⬇ Export .xlsx
         </a>
 
         <a
             class="btn btn-secondary"
-            href="/calendar/export.pdf?year={{ year }}&month={{ month }}"
+            href="/calendar/export.pdf?year={{ year }}&month={{ month }}{% if selected_branch_id %}&branch_id={{ selected_branch_id }}{% endif %}"
         >
             ⬇ Export .pdf
         </a>
 
         <a
             class="btn btn-secondary"
-            href="/calendar/export.ics?year={{ year }}&month={{ month }}"
+            href="/calendar/export.ics?year={{ year }}&month={{ month }}{% if selected_branch_id %}&branch_id={{ selected_branch_id }}{% endif %}"
         >
             ⬇ Export .ics
         </a>
 
-        <a
-            class="btn"
-            href="/shifts/add"
-        >
-            + Pridať smenu
-        </a>
+        {% if not read_only %}
+
+            <a
+                class="btn"
+                href="/shifts/add"
+            >
+                + Pridať smenu
+            </a>
+
+        {% endif %}
 
     </div>
 
@@ -70,6 +78,39 @@
             name="month"
             value="{{ month }}"
         >
+
+        {% if branches and branches|length > 1 %}
+
+            <label for="branch_id">
+                Pobočka
+            </label>
+
+            <select
+                id="branch_id"
+                name="branch_id"
+                onchange="this.form.submit()"
+            >
+
+                <option value="">
+                    Všetky pobočky
+                </option>
+
+                {% for branch in branches %}
+
+                    <option
+                        value="{{ branch[0] }}"
+                        {% if selected_branch_id == branch[0] %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ branch[1] }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        {% endif %}
 
         <label for="employee_id">
             Zamestnanec
@@ -209,6 +250,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const selectedEmployeeId = "{{ selected_employee_id or '' }}";
     const selectedDepartmentId = "{{ selected_department_id or '' }}";
+    const selectedBranchId = "{{ selected_branch_id or '' }}";
+    const readOnly = {{ 'true' if read_only else 'false' }};
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: "dayGridMonth",
@@ -216,23 +259,31 @@ document.addEventListener("DOMContentLoaded", function () {
         locale: "sk",
         firstDay: 1,
         height: "auto",
-        editable: true,
-        eventStartEditable: true,
+        editable: !readOnly,
+        eventStartEditable: !readOnly,
         headerToolbar: {
             left: "prev,next today",
             center: "title",
             right: "",
         },
         dateClick: function (info) {
+            if (readOnly) {
+                return;
+            }
+
             window.location.href = "/shifts/add?date=" + info.dateStr;
         },
         eventClick: function (info) {
+            if (readOnly) {
+                return;
+            }
+
             window.location.href = "/shifts/edit/" + info.event.id;
         },
         eventDidMount: function (info) {
             const weeklyHours = info.event.extendedProps.weeklyHours;
 
-            if (!weeklyHours) {
+            if (!weeklyHours || readOnly) {
                 return;
             }
 
@@ -259,6 +310,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (selectedDepartmentId) {
                 params.set("department_id", selectedDepartmentId);
+            }
+
+            if (selectedBranchId) {
+                params.set("branch_id", selectedBranchId);
             }
 
             fetch("/api/shifts?" + params.toString())

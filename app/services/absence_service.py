@@ -46,14 +46,18 @@ def _absence_columns():
     )
 
 
-def get_absences():
-    """Načíta všetky neprítomnosti spolu so zamestnancom."""
+def get_absences(branch_ids=None):
+    """Načíta neprítomnosti spolu so zamestnancom; voliteľne len
+    zamestnancov z vybraných pobočiek (``None`` = všetky)."""
 
     query = (
         select(*_absence_columns())
         .join(Employee, Absence.employee_id == Employee.id)
         .order_by(Absence.start_date.desc())
     )
+
+    if branch_ids is not None:
+        query = query.where(Employee.branch_id.in_(list(branch_ids)))
 
     return db.session.execute(query).all()
 
@@ -132,9 +136,10 @@ def get_employee_absence_on_date(employee_id, check_date):
     return db.session.execute(query).first()
 
 
-def get_absences_in_range(start_date, end_date):
+def get_absences_in_range(start_date, end_date, branch_ids=None):
     """Načíta neprítomnosti prekrývajúce sa s daným rozsahom dátumov
-    (napr. pre zobrazenie v kalendári)."""
+    (napr. pre zobrazenie v kalendári); voliteľne len z vybraných
+    pobočiek."""
 
     query = (
         select(*_absence_columns())
@@ -145,5 +150,8 @@ def get_absences_in_range(start_date, end_date):
         )
         .order_by(Absence.start_date)
     )
+
+    if branch_ids is not None:
+        query = query.where(Employee.branch_id.in_(list(branch_ids)))
 
     return db.session.execute(query).all()

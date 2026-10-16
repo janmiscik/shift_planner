@@ -16,14 +16,20 @@
         </p>
     </div>
 
-    <a
-        class="btn"
-        href="/departments/add"
-    >
-        + Pridať oddelenie
-    </a>
+    {% if current_user.role == "admin" %}
+
+        <a
+            class="btn"
+            href="/departments/add"
+        >
+            + Pridať oddelenie
+        </a>
+
+    {% endif %}
 
 </div>
+
+{% include "_branch_filter.html" %}
 
 
 <div class="card">
@@ -38,8 +44,13 @@
                     <th>ID</th>
                     <th>Názov</th>
                     <th>Min. počet ľudí na zmene</th>
+                    {% if branches|length > 1 %}
+                        <th>Pobočka</th>
+                    {% endif %}
                     <th>Stav</th>
-                    <th>Akcie</th>
+                    {% if current_user.role == "admin" %}
+                        <th>Akcie</th>
+                    {% endif %}
                 </tr>
 
             </thead>
@@ -64,6 +75,10 @@
                             {{ department[3] if department[3] is not none else "—" }}
                         </td>
 
+                        {% if branches|length > 1 %}
+                            <td>{{ department[5] }}</td>
+                        {% endif %}
+
                         <td>
 
                             {% if department[2] %}
@@ -82,6 +97,7 @@
 
                         </td>
 
+                        {% if current_user.role == "admin" %}
                         <td class="actions">
 
                             <a
@@ -123,6 +139,7 @@
                             </form>
 
                         </td>
+                        {% endif %}
 
                     </tr>
 
@@ -140,12 +157,16 @@
                 Zatiaľ nemáš žiadne oddelenia.
             </p>
 
-            <a
-                class="btn"
-                href="/departments/add"
-            >
-                Pridať prvé oddelenie
-            </a>
+            {% if current_user.role == "admin" %}
+
+                <a
+                    class="btn"
+                    href="/departments/add"
+                >
+                    Pridať prvé oddelenie
+                </a>
+
+            {% endif %}
 
         </div>
 

@@ -26,10 +26,10 @@ def client(tmp_path):
     SQLAlchemy (ktoré si engine viaže na konkrétnu appku pri jej
     vytvorení).
 
-    Automaticky sa prihlási ako manažér (``testmanager``), keďže
-    všetky routy okrem /login teraz vyžadujú prihlásenie - testy
-    zamerané priamo na prihlasovanie/role si robia vlastné
-    prihlásenie/odhlásenie.
+    Automaticky sa prihlási ako administrátor (``testmanager`` - názov
+    ostal z čias, keď bol jediným typom účtu manažér), keďže všetky
+    routy okrem /login vyžadujú prihlásenie - testy zamerané priamo na
+    prihlasovanie/role si robia vlastné prihlásenie/odhlásenie.
     """
 
     db_path = tmp_path / "test_shift_planner.db"
@@ -43,9 +43,9 @@ def client(tmp_path):
     with flask_app.app_context():
         db.create_all()
 
-        from app.services.auth_service import create_manager
+        from app.services.auth_service import create_admin
 
-        create_manager("testmanager", "testpassword123")
+        create_admin("testmanager", "testpassword123")
 
     with flask_app.test_client() as test_client:
         login_page = test_client.get("/login")

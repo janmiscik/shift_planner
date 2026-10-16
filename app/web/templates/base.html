@@ -64,12 +64,30 @@
                     <span>Môj rozpis</span>
                 </a>
 
+                {% if employees_can_view_calendar %}
+
+                    <a href="/calendar">
+                        <span class="nav-icon">▣</span>
+                        <span>Kalendár pobočky</span>
+                    </a>
+
+                {% endif %}
+
             {% else %}
 
                 <a href="/">
                     <span class="nav-icon">⌂</span>
                     <span>Dashboard</span>
                 </a>
+
+                {% if current_user.is_authenticated and current_user.employee_id %}
+
+                    <a href="/my-schedule">
+                        <span class="nav-icon">📅</span>
+                        <span>Môj rozpis</span>
+                    </a>
+
+                {% endif %}
 
                 <a href="/employees">
                     <span class="nav-icon">👥</span>
@@ -96,9 +114,32 @@
                     <span>Absencie</span>
                 </a>
 
-                <a href="/admin/backup" download>
-                    <span class="nav-icon">💾</span>
-                    <span>Zálohovať databázu</span>
+                {% if current_user.is_authenticated and current_user.role == "admin" %}
+
+                    <a href="/branches">
+                        <span class="nav-icon">🏢</span>
+                        <span>Pobočky</span>
+                    </a>
+
+                    <a href="/users">
+                        <span class="nav-icon">🔑</span>
+                        <span>Účty</span>
+                    </a>
+
+                    <a href="/admin/backup" download>
+                        <span class="nav-icon">💾</span>
+                        <span>Zálohovať databázu</span>
+                    </a>
+
+                {% endif %}
+
+            {% endif %}
+
+            {% if current_user.is_authenticated %}
+
+                <a href="/account/password">
+                    <span class="nav-icon">🔒</span>
+                    <span>Zmeniť heslo</span>
                 </a>
 
             {% endif %}
