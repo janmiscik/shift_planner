@@ -108,6 +108,13 @@ routov, nová routa je teda predvolene len pre admina). Test
 `test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
 pri novej route nerozhodneš, kto ju smie používať.
 
+## Nasadenie pre pobočky
+
+Pre reálnu prevádzku s viacerými pobočkami (PostgreSQL, produkčný
+server, HTTPS, zálohy, presun dát zo SQLite) pozri
+[`DEPLOYMENT.md`](DEPLOYMENT.md). Produkčný server sa spúšťa
+`python manage.py serve`.
+
 ## Spustenie
 
 ```powershell

@@ -4,6 +4,13 @@ Použitie:
     python manage.py migrate               # aplikuje databázové migrácie
                                             # (najprv automaticky zálohuje
                                             # existujúcu databázu)
+    python manage.py import-sqlite [cesta] # jednorazovo skopíruje dáta zo
+                                            # SQLite do PostgreSQL
+                                            # (DATABASE_URL), pozri
+                                            # DEPLOYMENT.md
+    python manage.py serve                 # spustí produkčný server
+                                            # (waitress); vyžaduje vlastný
+                                            # SECRET_KEY, pozri DEPLOYMENT.md
     python manage.py runserver             # spustí vývojový webový server
                                             # (HOST, PORT, FLASK_DEBUG sa dajú
                                             # nastaviť premennými prostredia;
@@ -36,6 +43,11 @@ Databáza je od tejto verzie spravovaná cez SQLAlchemy + Alembic
 Pred KAŽDOU migráciou existujúcej databázy sa automaticky vytvorí
 záloha (do ``app/data/backups/``), pre prípad, že by sa niečo
 pokazilo.
+
+Databáza: predvolene SQLite súbor. Pre nasadenie na viac pobočiek
+nastav v ``.env`` premennú ``DATABASE_URL`` (PostgreSQL), napr.
+``postgresql://uzivatel:heslo@localhost:5432/shift_planner``. Zálohy sa
+potom robia cez ``pg_dump`` (musí byť nainštalovaný).
 """
 
 import sys
@@ -67,6 +79,12 @@ def main():
         )
 
         create_app().run(host=host, port=port, debug=debug)
+
+    elif command == "serve":
+        _run_serve()
+
+    elif command == "import-sqlite":
+        _run_import_sqlite(sys.argv[2] if len(sys.argv) > 2 else None)
 
     elif command == "create-admin":
         _run_create_user(
@@ -169,20 +187,30 @@ def _run_status():
 
     import sqlalchemy as sa
 
-    from app.data.database import DEFAULT_DATABASE_PATH
+    from app.data.database import (
+        DEFAULT_DATABASE_PATH,
+        is_sqlite_uri,
+        redact_database_uri,
+    )
     from app.extensions import db
     from app.web.app import create_app
 
-    db_path = Path(DEFAULT_DATABASE_PATH)
+    uri = _database_uri()
 
-    print(f"Databázový súbor: {db_path}")
-    print(f"Existuje: {'áno' if db_path.exists() else 'NIE'}")
+    if is_sqlite_uri(uri):
+        db_path = Path(DEFAULT_DATABASE_PATH)
 
-    if not db_path.exists():
-        print("Spusti najprv: python manage.py migrate")
-        return
+        print(f"Databázový súbor: {db_path}")
+        print(f"Existuje: {'áno' if db_path.exists() else 'NIE'}")
 
-    print(f"Veľkosť: {db_path.stat().st_size / 1024:.1f} KB")
+        if not db_path.exists():
+            print("Spusti najprv: python manage.py migrate")
+            return
+
+        print(f"Veľkosť: {db_path.stat().st_size / 1024:.1f} KB")
+    else:
+        print(f"Databáza: {redact_database_uri(uri)}")
+
     print()
 
     app = create_app()
@@ -218,6 +246,125 @@ def _run_status():
                 print(f"  {table}: {count}")
             else:
                 print(f"  {table}: (tabuľka neexistuje)")
+
+
+def _database_uri():
+    """URI databázy, na ktorú appka mieri (explicitne cez DATABASE_URL
+    v prostredí/.env, inak predvolený SQLite súbor)."""
+
+    import app.extensions  # noqa: F401  (načíta .env)
+    from app.data.database import resolve_database_uri
+
+    return resolve_database_uri()
+
+
+def _run_import_sqlite(sqlite_path=None):
+    """Jednorazový presun dát zo SQLite súboru do PostgreSQL."""
+
+    from pathlib import Path
+
+    from app.data.database import (
+        DEFAULT_DATABASE_PATH,
+        is_sqlite_uri,
+        redact_database_uri,
+    )
+    from app.extensions import db
+    from app.services.transfer_service import (
+        TransferError,
+        copy_sqlite_to_database,
+    )
+    from app.web.app import create_app
+
+    uri = _database_uri()
+
+    if is_sqlite_uri(uri):
+        print(
+            "CHYBA: DATABASE_URL musí mieť PostgreSQL (nastav ho v "
+            ".env), cieľ nesmie byť SQLite."
+        )
+        sys.exit(1)
+
+    source = Path(sqlite_path) if sqlite_path else Path(DEFAULT_DATABASE_PATH)
+
+    if not source.exists():
+        print(f"CHYBA: SQLite súbor '{source}' neexistuje.")
+        sys.exit(1)
+
+    print(f"Zdroj : {source}")
+    print(f"Cieľ  : {redact_database_uri(uri)}")
+
+    app = create_app()
+
+    with app.app_context():
+        try:
+            copied = copy_sqlite_to_database(source, db.engine)
+        except TransferError as error:
+            print(f"CHYBA: {error}")
+            sys.exit(1)
+
+    print()
+    print("Skopírované riadky:")
+
+    for table, count in copied.items():
+        print(f"  {table}: {count}")
+
+    print()
+    print("Hotovo. Pôvodný SQLite súbor ostal nezmenený (ponechaj si ho ako zálohu).")
+
+
+def _run_serve():
+    """Produkčný server (waitress) - bez debuggera, viac vlákien."""
+
+    import os
+
+    from app.web.app import _DEFAULT_SECRET_KEY, create_app
+
+    secret_key = os.environ.get("SECRET_KEY", "")
+
+    if not secret_key or secret_key == _DEFAULT_SECRET_KEY:
+        print(
+            "CHYBA: pre produkčný server musí byť nastavený vlastný "
+            "SECRET_KEY (v .env alebo v prostredí). Vygeneruješ ho:\n"
+            "  python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+        sys.exit(1)
+
+    try:
+        from waitress import serve
+    except ImportError:
+        print(
+            "CHYBA: chýba balík 'waitress'. Nainštaluj závislosti: "
+            "pip install -r requirements.txt"
+        )
+        sys.exit(1)
+
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "8000"))
+    threads = int(os.environ.get("THREADS", "8"))
+
+    behind_proxy = os.environ.get("BEHIND_PROXY", "0") == "1"
+    secure_cookie = os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
+
+    if behind_proxy and not secure_cookie:
+        print(
+            "UPOZORNENIE: BEHIND_PROXY=1, ale SESSION_COOKIE_SECURE nie "
+            "je 1. Ak proxy poskytuje HTTPS, nastav "
+            "SESSION_COOKIE_SECURE=1."
+        )
+
+    if host not in ("127.0.0.1", "localhost") and not behind_proxy:
+        print(
+            f"UPOZORNENIE: server počúva na {host} bez HTTPS. Heslá by "
+            "sa po sieti posielali nešifrovane - použi reverzný proxy "
+            "s HTTPS (pozri DEPLOYMENT.md) a HOST=127.0.0.1."
+        )
+
+    app = create_app()
+
+    print(f"Server beží na http://{host}:{port} (vlákna: {threads}).")
+    print("Zastavíš ho cez Ctrl+C.")
+
+    serve(app, host=host, port=port, threads=threads)
 
 
 def _run_create_user(username, role):
@@ -304,8 +451,24 @@ def _run_create_user(username, role):
 
 
 def _run_backup():
-    from app.data.database import DEFAULT_DATABASE_PATH
-    from app.services.backup_service import create_backup
+    from app.data.database import DEFAULT_DATABASE_PATH, is_sqlite_uri
+    from app.services.backup_service import (
+        BackupError,
+        create_backup,
+        create_postgres_backup,
+    )
+
+    uri = _database_uri()
+
+    if not is_sqlite_uri(uri):
+        try:
+            backup_path = create_postgres_backup(uri, label="manualna")
+        except BackupError as error:
+            print(f"Záloha zlyhala: {error}")
+            sys.exit(1)
+
+        print(f"Záloha vytvorená: {backup_path}")
+        return
 
     backup_path = create_backup(DEFAULT_DATABASE_PATH, label="manualna")
 
@@ -337,8 +500,32 @@ def _run_list_backups():
 
 
 def _run_restore(backup_filename):
-    from app.data.database import DEFAULT_DATABASE_PATH
-    from app.services.backup_service import restore_backup
+    from sqlalchemy.engine import make_url
+
+    from app.data.database import DEFAULT_DATABASE_PATH, is_sqlite_uri
+    from app.services.backup_service import (
+        default_backups_dir,
+        restore_backup,
+    )
+
+    uri = _database_uri()
+
+    if not is_sqlite_uri(uri):
+        # Obnova PostgreSQL prepíše celú databázu - radšej sa nerobí
+        # automaticky, ale ručne a vedome.
+        url = make_url(uri)
+        backup_path = default_backups_dir() / backup_filename
+
+        print("Obnova PostgreSQL databázy sa robí ručne (prepíše všetky dáta).")
+        print("1. Zastav appku a urob čerstvú zálohu: python manage.py backup")
+        print("2. Spusti (zadá sa heslo databázy):")
+        print(
+            f'   pg_restore --clean --if-exists --no-owner '
+            f'--host {url.host or "localhost"} --port {url.port or 5432} '
+            f'--username {url.username} --dbname {url.database} '
+            f'"{backup_path}"'
+        )
+        return
 
     confirmation = input(
         f"Naozaj chceš prepísať aktuálnu databázu zálohou "
@@ -360,13 +547,77 @@ def _run_restore(backup_filename):
     print(f"Databáza obnovená zo zálohy '{backup_filename}'.")
 
 
+def _run_migrate_postgres(uri):
+    """Migrácia PostgreSQL: pred zmenou existujúcej databázy sa urobí
+    záloha cez pg_dump (bez nej sa migrácia nespustí, ak to výslovne
+    nepovolíš parametrom --no-backup)."""
+
+    import sqlalchemy as sa
+    from flask_migrate import stamp, upgrade
+
+    from app.data.database import redact_database_uri
+    from app.extensions import db
+    from app.services.backup_service import (
+        BackupError,
+        create_postgres_backup,
+    )
+    from app.web.app import create_app
+
+    print(f"Databáza: {redact_database_uri(uri)}")
+
+    app = create_app()
+
+    with app.app_context():
+        existing_tables = set(sa.inspect(db.engine).get_table_names())
+
+        if existing_tables and "--no-backup" not in sys.argv:
+            try:
+                backup_path = create_postgres_backup(
+                    uri, label="pred-migraciou"
+                )
+            except BackupError as error:
+                print(f"Záloha pred migráciou zlyhala: {error}")
+                print("Migrácia sa NESPUSTILA (bezpečnosť dát).")
+                print(
+                    "Nainštaluj klientske nástroje PostgreSQL (pg_dump), "
+                    "alebo na vlastné riziko spusti: "
+                    "python manage.py migrate --no-backup"
+                )
+                sys.exit(1)
+
+            print(f"Automatická záloha pred migráciou: {backup_path}")
+
+        if "alembic_version" in existing_tables:
+            upgrade()
+            print("Databáza aktualizovaná (Alembic upgrade).")
+
+        elif "employees" in existing_tables:
+            stamp(revision=_get_base_revision(app))
+            upgrade()
+            print(
+                "Existujúca databáza označená na pôvodnú schému a "
+                "doplnená o novšie migrácie (Alembic stamp + upgrade)."
+            )
+
+        else:
+            upgrade()
+            print("Databáza vytvorená od začiatku (Alembic upgrade).")
+
+
 def _run_migrate():
     import sqlalchemy as sa
     from pathlib import Path
 
     from flask_migrate import stamp, upgrade
 
-    from app.data.database import DEFAULT_DATABASE_PATH
+    from app.data.database import DEFAULT_DATABASE_PATH, is_sqlite_uri
+
+    uri = _database_uri()
+
+    if not is_sqlite_uri(uri):
+        _run_migrate_postgres(uri)
+        return
+
     from app.extensions import db
     from app.services.backup_service import create_backup
     from app.web.app import create_app

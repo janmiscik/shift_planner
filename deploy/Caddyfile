@@ -1,0 +1,10 @@
+# Caddy - reverzný proxy s automatickým HTTPS (certifikát od Let's Encrypt
+# si Caddy vybaví a obnovuje sám).
+#
+# Zmeň "plan.firma.sk" na svoju doménu (A záznam domény musí mieť IP
+# tohto servera; porty 80 a 443 musia byť otvorené).
+
+plan.firma.sk {
+    encode gzip
+    reverse_proxy 127.0.0.1:8000
+}

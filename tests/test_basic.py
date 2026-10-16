@@ -1316,6 +1316,7 @@ def test_restore_missing_backup_raises(tmp_path):
         restore_backup("neexistujuca_zaloha.db", db_path)
 
 
+@pytest.mark.sqlite_only
 def test_admin_backup_route_downloads_database(client):
     response = client.get("/admin/backup")
 

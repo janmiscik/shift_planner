@@ -1,0 +1,16 @@
+# systemd služba pre Linux server.
+# Uložiť ako /etc/systemd/system/shift-planner.service
+
+[Unit]
+Description=Shift Planner
+After=network.target postgresql.service
+
+[Service]
+User=shiftplanner
+WorkingDirectory=/opt/shift_planner
+ExecStart=/opt/shift_planner/.venv/bin/python manage.py serve
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

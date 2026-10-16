@@ -7,9 +7,19 @@ Bežná appka teda zálohuje do ``app/data/backups/`` (mimo gitu - pozri
 .gitignore), pretože tam je aj samotný súbor ``shift_planner.db``.
 """
 
+import os
 import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
+
+from sqlalchemy.engine import make_url
+
+from app.data.database import DEFAULT_DATABASE_PATH
+
+
+class BackupError(RuntimeError):
+    """Zálohu sa nepodarilo vytvoriť (napr. chýba ``pg_dump``)."""
 
 
 def _backups_dir(database_path):
@@ -41,6 +51,75 @@ def create_backup(database_path, label=None):
     return backup_path
 
 
+def default_backups_dir():
+    """Priečinok záloh pre PostgreSQL (nemá súbor, vedľa ktorého by sa
+    zálohy ukladali): ``app/data/backups/``."""
+
+    return Path(DEFAULT_DATABASE_PATH).resolve().parent / "backups"
+
+
+def create_postgres_backup(database_uri, label=None, backups_dir=None):
+    """Vytvorí zálohu PostgreSQL databázy cez ``pg_dump`` (formát
+    ``custom``, súbor ``.dump``) a vráti cestu k nej.
+
+    Vyžaduje nainštalované klientske nástroje PostgreSQL (``pg_dump``
+    v PATH). Heslo sa nepredáva v príkazovom riadku, ale cez premennú
+    prostredia ``PGPASSWORD``. Vyhodí ``BackupError``, ak sa záloha
+    nepodarí.
+    """
+
+    pg_dump = shutil.which("pg_dump")
+
+    if pg_dump is None:
+        raise BackupError(
+            "na serveri nie je nainštalovaný 'pg_dump' (klientske "
+            "nástroje PostgreSQL)."
+        )
+
+    url = make_url(str(database_uri))
+
+    backups_dir = Path(backups_dir) if backups_dir else default_backups_dir()
+    backups_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    suffix = f"_{label}" if label else ""
+    backup_path = backups_dir / f"shift_planner_{timestamp}{suffix}.dump"
+
+    command = [pg_dump, "--format=custom", "--file", str(backup_path)]
+
+    if url.host:
+        command += ["--host", url.host]
+
+    if url.port:
+        command += ["--port", str(url.port)]
+
+    if url.username:
+        command += ["--username", url.username]
+
+    command.append(url.database)
+
+    environment = dict(os.environ)
+
+    if url.password:
+        environment["PGPASSWORD"] = url.password
+
+    result = subprocess.run(
+        command,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        backup_path.unlink(missing_ok=True)
+
+        raise BackupError(
+            result.stderr.strip() or "pg_dump skončil s chybou."
+        )
+
+    return backup_path
+
+
 def list_backups(database_path):
     """Vráti zoznam záloh (najnovšia prvá) - (cesta, veľkosť, čas)."""
 
@@ -51,7 +130,10 @@ def list_backups(database_path):
 
     backups = []
 
-    for backup_path in backups_dir.glob("*.db"):
+    for backup_path in [
+        *backups_dir.glob("*.db"),
+        *backups_dir.glob("*.dump"),
+    ]:
         stat = backup_path.stat()
         backups.append(
             (

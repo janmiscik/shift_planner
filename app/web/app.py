@@ -27,7 +27,11 @@ from flask_login import (
 from flask_wtf import CSRFProtect
 from wtforms.validators import DataRequired, Length, Optional
 
-from app.data.database import DEFAULT_DATABASE_PATH
+from app.data.database import (
+    is_sqlite_uri,
+    resolve_database_uri,
+    sqlite_path_from_uri,
+)
 from app.extensions import db, login_manager, migrate
 
 load_dotenv()
@@ -553,10 +557,30 @@ def admin_backup():
 
     from flask import current_app
 
-    from app.services.backup_service import create_backup
+    from app.services.backup_service import (
+        BackupError,
+        create_backup,
+        create_postgres_backup,
+    )
 
     database_uri = current_app.config["SQLALCHEMY_DATABASE_URI"]
-    database_path = database_uri.replace("sqlite:///", "", 1)
+
+    if not is_sqlite_uri(database_uri):
+        try:
+            backup_path = create_postgres_backup(
+                database_uri, label="stiahnutie"
+            )
+        except BackupError as error:
+            return f"Zálohu sa nepodarilo vytvoriť: {error}", 500
+
+        return send_file(
+            backup_path,
+            as_attachment=True,
+            download_name=backup_path.name,
+            mimetype="application/octet-stream",
+        )
+
+    database_path = sqlite_path_from_uri(database_uri)
 
     backup_path = create_backup(database_path, label="stiahnutie")
 
@@ -1962,7 +1986,9 @@ def create_app(database_path=None):
     """Vytvorí a nakonfiguruje inštanciu Flask appky.
 
     ``database_path`` - explicitná cesta k SQLite súboru. Ak sa
-    nezadá, použije sa predvolená cesta z ``app/data/database.py``.
+    nezadá, použije sa ``DATABASE_URL`` z prostredia (napr.
+    PostgreSQL), inak predvolený SQLite súbor z
+    ``app/data/database.py``.
     Testy si sem posielajú vlastnú dočasnú cestu, aby mal každý test
     úplne izolovanú databázu (nutné pre správne fungovanie
     SQLAlchemy - engine sa viaže na appku pri jej vytvorení, nie pri
@@ -1981,10 +2007,16 @@ def create_app(database_path=None):
             "  python -c \"import secrets; print(secrets.token_hex(32))\""
         )
 
-    resolved_path = database_path or DEFAULT_DATABASE_PATH
+    database_uri = resolve_database_uri(database_path)
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{resolved_path}"
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_uri
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    if not is_sqlite_uri(database_uri):
+        # Server databázy môže zatvoriť nečinné spojenia - pred
+        # použitím sa pripojenie overí, aby appka po výpadku/reštarte
+        # databázy nepadala na "stale connection".
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 
     # Bezpečnejšie session cookie. Za HTTPS (pri nasadení pre
     # pobočky) nastav SESSION_COOKIE_SECURE=1.
@@ -1993,6 +2025,16 @@ def create_app(database_path=None):
     app.config["SESSION_COOKIE_SECURE"] = (
         os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
     )
+
+    if os.environ.get("BEHIND_PROXY", "0") == "1":
+        # Appka beží za reverzným proxy (Caddy/nginx), ktoré rieši
+        # HTTPS. Bez tohto by Flask nevidel, že spojenie je HTTPS
+        # (adresy, cookies) ani skutočnú IP klienta.
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, x_for=1, x_proto=1, x_host=1
+        )
 
     migrations_dir = Path(__file__).resolve().parent.parent.parent / "migrations"
 
@@ -2006,6 +2048,23 @@ def create_app(database_path=None):
     login_manager.login_message_category = "error"
 
     app.register_blueprint(bp)
+
+    @app.after_request
+    def _add_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault(
+            "Referrer-Policy", "strict-origin-when-cross-origin"
+        )
+
+        if app.config["SESSION_COOKIE_SECURE"]:
+            # Prehliadač si zapamätá, že appka je dostupná len cez HTTPS.
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+
+        return response
 
     return app
 

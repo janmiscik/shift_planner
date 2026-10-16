@@ -997,7 +997,11 @@ def test_migration_moves_existing_data_to_default_branch(tmp_path):
         )
         assert roles == {"boss": "admin", "jan": "employee"}
 
-        assert connection.execute(sa.text("PRAGMA foreign_key_check")).all() == []
+        if connection.dialect.name == "sqlite":
+            assert (
+                connection.execute(sa.text("PRAGMA foreign_key_check")).all()
+                == []
+            )
 
         # Po migrácii sa názov oddelenia môže opakovať v inej pobočke,
         # ale nie v tej istej.
