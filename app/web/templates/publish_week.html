@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Zverejniť týždeň - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Zverejniť týždeň</h1>
+
+        <p>
+            Nové smeny sú <strong>koncept</strong> - vidíš ich len ty.
+            Zamestnanci (ich rozpis, exporty aj kalendár pobočky) vidia
+            až <strong>zverejnené</strong> smeny. Zverejňuje sa po
+            týždňoch a pobočkách.
+        </p>
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    {% if branches %}
+
+    <form method="post">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="preview">
+
+
+        <div class="form-group">
+
+            <label for="branch_id">
+                Pobočka
+            </label>
+
+            <select id="branch_id" name="branch_id" required>
+
+                {% for branch in branches %}
+
+                    <option
+                        value="{{ branch[0] }}"
+                        {% if values.branch_id == branch[0] %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ branch[1] }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="week_date">
+                Týždeň (ľubovoľný deň v ňom)
+            </label>
+
+            <input
+                type="date"
+                id="week_date"
+                name="week_date"
+                value="{{ values.week_date }}"
+                required
+            >
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
+                Zobraziť stav týždňa
+            </button>
+
+            <a href="/shifts" class="btn btn-secondary">
+                Späť na smeny
+            </a>
+
+        </div>
+
+    </form>
+
+    {% else %}
+
+        <div class="empty">
+            <p>
+                Nemáš pridelenú žiadnu aktívnu pobočku.
+            </p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+
+{% if summary %}
+
+<div class="card" style="margin-top: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Týždeň {{ week }}
+    </h3>
+
+    {% if summary.total == 0 %}
+
+        <p>V tomto týždni nie sú v pobočke žiadne smeny.</p>
+
+    {% else %}
+
+        <p>
+            Smien spolu: <strong>{{ summary.total }}</strong> -
+            koncept: <strong>{{ summary.drafts }}</strong>,
+            zverejnených: <strong>{{ summary.published }}</strong>.
+        </p>
+
+        <div class="actions">
+
+            {% if summary.drafts %}
+
+                <form method="post">
+
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="publish">
+                    <input type="hidden" name="branch_id" value="{{ values.branch_id }}">
+                    <input type="hidden" name="week_date" value="{{ values.week_date }}">
+
+                    <button type="submit">
+                        ✅ Zverejniť {{ summary.drafts }} smien
+                    </button>
+
+                </form>
+
+            {% else %}
+
+                <p><small>Všetky smeny tohto týždňa sú už zverejnené.</small></p>
+
+            {% endif %}
+
+            {% if summary.published %}
+
+                <form
+                    method="post"
+                    onsubmit="return confirm('Zamestnanci tieto smeny prestanú vidieť. Naozaj ich stiahnuť zo zverejnenia?');"
+                >
+
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="unpublish">
+                    <input type="hidden" name="branch_id" value="{{ values.branch_id }}">
+                    <input type="hidden" name="week_date" value="{{ values.week_date }}">
+
+                    <button type="submit" class="btn btn-warning">
+                        Stiahnuť zo zverejnenia ({{ summary.published }})
+                    </button>
+
+                </form>
+
+            {% endif %}
+
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endif %}
+
+{% endblock %}

@@ -29,6 +29,18 @@
             preskočených: <strong>{{ skipped_count }}</strong>.
         </p>
 
+        {% if created_count and not auto_publish_shifts %}
+
+            <p>
+                Nové smeny sú zatiaľ <strong>koncept</strong> - zamestnanci
+                ich neuvidia, kým týždeň nezverejníš.
+                <a class="btn btn-small" href="{{ publish_url }}">
+                    ✅ Zverejniť týždeň
+                </a>
+            </p>
+
+        {% endif %}
+
     {% else %}
 
         <p>

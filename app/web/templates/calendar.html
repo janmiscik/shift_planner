@@ -240,7 +240,34 @@
         Prekročený limit hodín
     </div>
 
+    {% if not read_only %}
+
+        <div class="legend-item">
+            <span class="legend-color legend-draft"></span>
+            Koncept (zamestnanec ho zatiaľ nevidí)
+        </div>
+
+    {% endif %}
+
 </div>
+
+<style>
+    /* Koncept = rozpracovaná smena, ktorú zamestnanec ešte nevidí. */
+    .fc-event.shift-draft {
+        opacity: 0.6;
+        border-style: dashed !important;
+    }
+
+    .legend-draft {
+        background: repeating-linear-gradient(
+            45deg,
+            #94a3b8,
+            #94a3b8 4px,
+            #e2e8f0 4px,
+            #e2e8f0 8px
+        );
+    }
+</style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/index.global.min.js"></script>
 

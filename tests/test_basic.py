@@ -81,6 +81,23 @@ def post(client, url, data=None):
     return client.post(url, data=payload, follow_redirects=True)
 
 
+def _publish_week(client, week_date="2026-09-21"):
+    """Zverejní týždeň v predvolenej pobočke (nové smeny sú koncept,
+    zamestnanec ich uvidí až po zverejnení)."""
+
+    from app.services.branch_service import get_default_branch_id
+
+    return post(
+        client,
+        "/shifts/publish",
+        data={
+            "branch_id": str(get_default_branch_id()),
+            "week_date": week_date,
+            "action": "publish",
+        },
+    )
+
+
 def _csrf_token_for(client, page_url):
     response = client.get(page_url)
     return _extract_csrf_token(response.get_data(as_text=True))
@@ -1647,6 +1664,8 @@ def test_employee_role_can_login_and_see_own_schedule(client):
         },
     )
 
+    _publish_week(client)
+
     _logout(client)
 
     token = _csrf_token_for(client, "/login")
@@ -1755,6 +1774,8 @@ def test_employee_role_sees_only_their_own_shifts(client):
             "shift_type": "Ranná",
         },
     )
+
+    _publish_week(client)
 
     _logout(client)
     token = _csrf_token_for(client, "/login")

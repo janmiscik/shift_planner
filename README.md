@@ -112,6 +112,27 @@ routov, nová routa je teda predvolene len pre admina). Test
 `test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
 pri novej route nerozhodneš, kto ju smie používať.
 
+## Zverejnenie rozpisu (koncept / zverejnené)
+
+Nové smeny (pridané ručne, skopírované aj z šablóny) sú **koncept** -
+vidí ich len manažér a admin (na stránke Smeny so stavom "Koncept", v
+kalendári prerušovane a priesvitne). Zamestnanec vidí vo svojom rozpise,
+exportoch (`.xlsx`, `.pdf`, `.ics`) aj v kalendári pobočky len
+**zverejnené** smeny.
+
+Manažér zverejňuje na stránke **Smeny -> Zverejniť týždeň**
+(`/shifts/publish`): vyberie pobočku a týždeň, uvidí počet konceptov a
+zverejní ich jedným tlačidlom (alebo zverejnenie stiahne späť).
+
+- Úprava alebo presun už zverejnenej smeny zostáva zverejnená (zamestnanec
+  vidí zmenu hneď, smena mu nezmizne).
+- Smena pridaná do už zverejneného týždňa je opäť koncept, kým sa týždeň
+  nezverejní znova.
+- Doterajšie smeny sa pri aktualizácii (`migrate`) označia ako zverejnené,
+  aby o svoj rozpis nikto neprišiel.
+- Ak nechceš dvojkrokové plánovanie, nastav v `.env`
+  `AUTO_PUBLISH_SHIFTS=1` - nové smeny sa potom zverejnia hneď.
+
 ## Kopírovanie týždňa a šablóny smien
 
 Na stránke **Smeny** (manažér a admin, v rámci svojich pobočiek):
@@ -125,7 +146,8 @@ Na stránke **Smeny** (manažér a admin, v rámci svojich pobočiek):
   rámci pobočky.
 
 Každá kopírovaná smena prejde rovnakými pravidlami ako ručne pridaná
-(prekrytie, odpočinok, týždenné fondy, absencie, oddelenie). Smena, ktorá
+(prekrytie, odpočinok, týždenné fondy, absencie, oddelenie). Skopírované
+smeny sú koncept (pozri vyššie). Smena, ktorá
 by pravidlo porušila, sa **preskočí a uvedie sa dôvod** - ostatné sa
 vytvoria. Preskočí sa aj smena neaktívneho zamestnanca a smena, ktorá v
 cieľovom týždni už je. Opakované kopírovanie preto nevytvára duplicity.

@@ -533,6 +533,14 @@ def find_overlapping_shifts():
     return conflicts
 
 
+def auto_publish_enabled():
+    """Ak je ``AUTO_PUBLISH_SHIFTS=1``, nové smeny sa zverejnia hneď
+    (zamestnanec ich uvidí bez kroku "Zverejniť týždeň"). Predvolene
+    sú nové smeny koncept."""
+
+    return os.environ.get("AUTO_PUBLISH_SHIFTS", "0") == "1"
+
+
 def add_shift(
     employee_id,
     shift_date,
@@ -540,8 +548,16 @@ def add_shift(
     end_time,
     shift_type,
     department_id=None,
+    published=None,
 ):
-    """Pridá smenu konkrétnemu zamestnancovi."""
+    """Pridá smenu konkrétnemu zamestnancovi.
+
+    ``published=None`` = podľa ``AUTO_PUBLISH_SHIFTS`` (predvolene
+    koncept).
+    """
+
+    if published is None:
+        published = auto_publish_enabled()
 
     shift = Shift(
         employee_id=employee_id,
@@ -551,6 +567,7 @@ def add_shift(
         shift_type=shift_type,
         department_id=department_id or None,
         created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        published=1 if published else 0,
     )
 
     db.session.add(shift)
@@ -583,11 +600,12 @@ def _shift_base_query():
     )
 
 
-def get_shifts(branch_ids=None):
+def get_shifts(branch_ids=None, published_only=False):
     """Načíta smeny spolu so zamestnancom a oddelením.
 
     ``branch_ids=None`` = všetky pobočky, zoznam obmedzí výber na
-    smeny zamestnancov z daných pobočiek.
+    smeny zamestnancov z daných pobočiek. ``published_only=True`` vráti
+    len zverejnené smeny (to, čo smie vidieť zamestnanec).
     """
 
     query = _shift_base_query().order_by(
@@ -597,12 +615,17 @@ def get_shifts(branch_ids=None):
     if branch_ids is not None:
         query = query.where(Employee.branch_id.in_(list(branch_ids)))
 
+    if published_only:
+        query = query.where(Shift.published == 1)
+
     return db.session.execute(query).all()
 
 
-def get_shifts_in_range(start_date, end_date, branch_ids=None):
+def get_shifts_in_range(
+    start_date, end_date, branch_ids=None, published_only=False
+):
     """Načíta smeny v danom dátumovom rozsahu (vrátane); voliteľne len
-    z vybraných pobočiek."""
+    z vybraných pobočiek a len zverejnené."""
 
     query = (
         _shift_base_query()
@@ -612,6 +635,9 @@ def get_shifts_in_range(start_date, end_date, branch_ids=None):
 
     if branch_ids is not None:
         query = query.where(Employee.branch_id.in_(list(branch_ids)))
+
+    if published_only:
+        query = query.where(Shift.published == 1)
 
     return db.session.execute(query).all()
 
@@ -771,13 +797,17 @@ def backfill_shift_departments():
     return updated, skipped
 
 
-def get_shifts_by_employee(employee_id):
-    """Načíta smeny konkrétneho zamestnanca."""
+def get_shifts_by_employee(employee_id, published_only=False):
+    """Načíta smeny konkrétneho zamestnanca (voliteľne len zverejnené -
+    to, čo vidí on sám)."""
 
     query = (
         _shift_base_query()
         .where(Shift.employee_id == employee_id)
         .order_by(Shift.shift_date, Shift.start_time)
     )
+
+    if published_only:
+        query = query.where(Shift.published == 1)
 
     return db.session.execute(query).all()

@@ -18,6 +18,10 @@
 
     <div class="actions">
 
+        <a class="btn btn-secondary" href="/shifts/publish">
+            ✅ Zverejniť týždeň
+        </a>
+
         <a class="btn btn-secondary" href="/shifts/copy-week">
             ⧉ Kopírovať týždeň
         </a>
@@ -62,6 +66,7 @@
                     <th>Začiatok</th>
                     <th>Koniec</th>
                     <th>Typ smeny</th>
+                    <th>Stav</th>
                     <th>Vytvorené</th>
                     <th>Akcie</th>
                 </tr>
@@ -120,6 +125,24 @@
 
                                 <span class="status-inactive">
                                     {{ shift[6] }}
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+
+                            {% if shift[0] in draft_ids %}
+
+                                <span class="status-inactive">
+                                    Koncept
+                                </span>
+
+                            {% else %}
+
+                                <span class="status-active">
+                                    Zverejnená
                                 </span>
 
                             {% endif %}

@@ -50,6 +50,12 @@ load_dotenv()
 from app.orm_models import ROLE_ADMIN, ROLE_EMPLOYEE, ROLE_MANAGER
 
 from app.services.login_throttle import LoginThrottle
+from app.services.publish_service import (
+    get_draft_shift_ids,
+    publish_week,
+    unpublish_week,
+    week_publication_summary,
+)
 from app.services.week_plan_service import (
     delete_template,
     entries_from_template,
@@ -132,6 +138,7 @@ from app.services.shift_service import (
     filter_shifts_by_department,
     get_shift,
     get_shifts,
+    auto_publish_enabled,
     get_shifts_by_employee,
     get_shifts_in_range,
     move_shift,
@@ -239,6 +246,7 @@ _MANAGER_ALLOWED_ENDPOINTS = (
         "main.edit_shift_page",
         "main.delete_shift_page",
         "main.copy_week_page",
+        "main.publish_week_page",
         "main.shift_templates_page",
         "main.save_shift_template_page",
         "main.delete_shift_template_page",
@@ -301,6 +309,7 @@ def _require_login():
 def _inject_template_flags():
     return {
         "employees_can_view_calendar": _employees_can_view_branch_calendar(),
+        "auto_publish_shifts": auto_publish_enabled(),
     }
 
 
@@ -481,7 +490,9 @@ def my_schedule():
         return redirect("/")
 
     employee = get_employee(current_user.employee_id)
-    shifts = get_shifts_by_employee(current_user.employee_id)
+    shifts = get_shifts_by_employee(
+        current_user.employee_id, published_only=True
+    )
     absences = get_absences_by_employee(current_user.employee_id)
 
     return render_template(
@@ -498,7 +509,9 @@ def my_schedule_export_ics():
         return redirect("/")
 
     employee = get_employee(current_user.employee_id)
-    shifts = get_shifts_by_employee(current_user.employee_id)
+    shifts = get_shifts_by_employee(
+        current_user.employee_id, published_only=True
+    )
     calendar_name = f"Moje smeny - {employee[1]} {employee[2]}"
 
     ics = build_shifts_ics(shifts, calendar_name=calendar_name)
@@ -522,7 +535,9 @@ def _own_schedule_or_none():
     if employee is None:
         return None
 
-    return employee, get_shifts_by_employee(current_user.employee_id)
+    return employee, get_shifts_by_employee(
+        current_user.employee_id, published_only=True
+    )
 
 
 @bp.route("/my-schedule/export.xlsx")
@@ -1260,11 +1275,14 @@ def toggle_department_page(department_id):
 
 @bp.route("/shifts")
 def shifts_page():
-    shifts = get_shifts(_scope())
+    scope = _scope()
+
+    shifts = get_shifts(scope)
 
     return render_template(
         "shifts.html",
         shifts=shifts,
+        draft_ids=get_draft_shift_ids(branch_ids=scope),
         branches=_accessible_branches(),
         selected_branch_id=_selected_branch_id(),
     )
@@ -1499,6 +1517,7 @@ def _this_monday():
 
 def _plan_result_page(
     *,
+    branch_id,
     entries,
     target,
     commit,
@@ -1526,6 +1545,10 @@ def _plan_result_page(
         target_week=week_label(target),
         calendar_url=(
             f"/calendar?year={target.year}&month={target.month}"
+        ),
+        publish_url=(
+            f"/shifts/publish?branch_id={branch_id}"
+            f"&week_date={target.isoformat()}"
         ),
     )
 
@@ -1569,6 +1592,7 @@ def copy_week_page():
                 )
             else:
                 return _plan_result_page(
+                    branch_id=branch_id,
                     entries=entries,
                     target=target,
                     commit=(action == "copy"),
@@ -1587,6 +1611,68 @@ def copy_week_page():
 
     return render_template(
         "copy_week.html", branches=branches, values=values
+    )
+
+
+@bp.route("/shifts/publish", methods=["GET", "POST"])
+def publish_week_page():
+    """Zverejnenie (alebo stiahnutie) rozpisu pobočky na jeden týždeň."""
+
+    branches = _plannable_branches()
+    allowed_ids = {branch[0] for branch in branches}
+
+    source = request.form if request.method == "POST" else request.args
+
+    branch_id = source.get("branch_id", type=int)
+    monday = parse_week_start(source.get("week_date"))
+
+    values = {
+        "branch_id": branch_id,
+        "week_date": (
+            monday.isoformat() if monday else _this_monday().isoformat()
+        ),
+    }
+
+    if request.method == "POST":
+        action = request.form.get("action", "preview")
+
+        if branch_id not in allowed_ids:
+            flash("Vyber pobočku.", "error")
+            branch_id = None
+        elif monday is None:
+            flash("Zadaj platný dátum týždňa.", "error")
+        elif action == "publish":
+            count = publish_week(monday, branch_id)
+            flash(f"Zverejnených smien: {count}.", "success")
+
+            return redirect(
+                f"/shifts/publish?branch_id={branch_id}"
+                f"&week_date={monday.isoformat()}"
+            )
+        elif action == "unpublish":
+            count = unpublish_week(monday, branch_id)
+            flash(
+                f"Stiahnutých zo zverejnenia: {count}. "
+                "Zamestnanci ich už nevidia.",
+                "success",
+            )
+
+            return redirect(
+                f"/shifts/publish?branch_id={branch_id}"
+                f"&week_date={monday.isoformat()}"
+            )
+
+    summary = None
+
+    if branch_id in allowed_ids and monday is not None:
+        summary = week_publication_summary(monday, branch_id)
+
+    return render_template(
+        "publish_week.html",
+        branches=branches,
+        values=values,
+        summary=summary,
+        week=week_label(monday) if monday else "",
     )
 
 
@@ -1664,6 +1750,7 @@ def apply_shift_template_page(template_id):
         return redirect("/shifts/templates")
 
     return _plan_result_page(
+        branch_id=template[2],
         entries=entries,
         target=target,
         commit=(action == "apply"),
@@ -1889,7 +1976,12 @@ def export_calendar_xlsx():
     month = request.args.get("month", today.month, type=int)
 
     first_day, last_day = month_bounds(year, month)
-    shifts = get_shifts_in_range(first_day, last_day, _scope())
+    shifts = get_shifts_in_range(
+        first_day,
+        last_day,
+        _scope(),
+        published_only=current_user.role == ROLE_EMPLOYEE,
+    )
 
     workbook = build_shifts_workbook(
         shifts,
@@ -1915,7 +2007,12 @@ def export_calendar_pdf():
     month = request.args.get("month", today.month, type=int)
 
     first_day, last_day = month_bounds(year, month)
-    shifts = get_shifts_in_range(first_day, last_day, _scope())
+    shifts = get_shifts_in_range(
+        first_day,
+        last_day,
+        _scope(),
+        published_only=current_user.role == ROLE_EMPLOYEE,
+    )
 
     pdf = build_shifts_pdf(
         shifts,
@@ -1938,7 +2035,12 @@ def export_calendar_ics():
     month = request.args.get("month", today.month, type=int)
 
     first_day, last_day = month_bounds(year, month)
-    shifts = get_shifts_in_range(first_day, last_day, _scope())
+    shifts = get_shifts_in_range(
+        first_day,
+        last_day,
+        _scope(),
+        published_only=current_user.role == ROLE_EMPLOYEE,
+    )
 
     ics = build_shifts_ics(
         shifts,
@@ -2000,7 +2102,14 @@ def api_shifts():
         month = request.args.get("month", today.month, type=int)
         first_day, last_day = month_bounds(year, month)
 
-    shifts = get_shifts_in_range(first_day, last_day, _scope())
+    is_employee_view = current_user.role == ROLE_EMPLOYEE
+
+    shifts = get_shifts_in_range(
+        first_day,
+        last_day,
+        _scope(),
+        published_only=is_employee_view,
+    )
 
     if employee_id:
         shifts = [
@@ -2010,7 +2119,15 @@ def api_shifts():
     if department_id:
         shifts = filter_shifts_by_department(shifts, department_id)
 
-    events = shifts_to_fullcalendar_events(shifts)
+    # Koncepty sa v kalendári odlišujú len manažérovi/adminovi;
+    # zamestnanec vidí iba zverejnené smeny (bez rozlišovania).
+    draft_ids = (
+        None
+        if is_employee_view
+        else get_draft_shift_ids(first_day, last_day, _scope())
+    )
+
+    events = shifts_to_fullcalendar_events(shifts, draft_ids)
 
     if current_user.role == ROLE_EMPLOYEE:
         # Zamestnanec vidí rozpis pobočky, ale nie stav týždenných

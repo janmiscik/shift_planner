@@ -56,13 +56,14 @@ def world(tmp_path):
         add_employee_department(ids["anna"], ids["dep_a"], 20)
         add_employee_department(ids["boris"], ids["dep_b"], 20)
 
+        # Zverejnené smeny (zamestnanec ich vidí) - nové smeny sú koncept.
         ids["shift_a"] = add_shift(
             ids["anna"], "2026-09-21", "06:00", "14:00", "Ranná",
-            department_id=ids["dep_a"],
+            department_id=ids["dep_a"], published=True,
         )
         ids["shift_b"] = add_shift(
             ids["boris"], "2026-09-22", "06:00", "14:00", "Ranná",
-            department_id=ids["dep_b"],
+            department_id=ids["dep_b"], published=True,
         )
 
         create_admin("admin", "adminpass1")

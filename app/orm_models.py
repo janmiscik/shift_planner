@@ -204,6 +204,12 @@ class Shift(db.Model):
     # sledovania) majú namiesto dátumu text
     # "neznámy (pred zavedením sledovania)".
     created_at = db.Column(db.String, nullable=True)
+    # 0 = koncept (vidí ho len manažér/admin), 1 = zverejnená (vidí ju
+    # aj zamestnanec). Nové smeny sú koncept, kým ich manažér
+    # nezverejní (pozri ``publish_service``).
+    published = db.Column(
+        db.Integer, nullable=False, default=0, server_default="0"
+    )
 
     employee = db.relationship("Employee", back_populates="shifts")
     department = db.relationship("Department")

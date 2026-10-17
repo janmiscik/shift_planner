@@ -25,7 +25,11 @@ from app.orm_models import (
     ShiftTemplateEntry,
 )
 from app.services.employee_service import get_employee
-from app.services.shift_service import get_shifts_in_range, validate_shift
+from app.services.shift_service import (
+    auto_publish_enabled,
+    get_shifts_in_range,
+    validate_shift,
+)
 from app.services.text_utils import same_name
 
 WEEKDAY_NAMES = [
@@ -164,6 +168,7 @@ def run_plan(entries, target_monday, commit):
     """
 
     rows = []
+    published = 1 if auto_publish_enabled() else 0
 
     try:
         ordered = sorted(
@@ -212,6 +217,7 @@ def run_plan(entries, target_monday, commit):
                     created_at=datetime.now(timezone.utc).strftime(
                         "%Y-%m-%d %H:%M:%S"
                     ),
+                    published=published,
                 )
             )
             db.session.flush()
