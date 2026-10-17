@@ -361,10 +361,29 @@ def _run_serve():
 
     app = create_app()
 
+    serve_options = {"host": host, "port": port, "threads": threads}
+
+    if behind_proxy:
+        # Waitress predvolene maže hlavičky X-Forwarded-* (aby ich nikto
+        # nepodvrhol), takže by appka za proxy videla všetkých klientov
+        # ako jednu adresu (a limit pokusov o prihlásenie by blokoval
+        # všetkých naraz). Dôveryhodnému proxy (predvolene localhost,
+        # inak TRUSTED_PROXY) ich výslovne povolíme; hlavičky od
+        # čohokoľvek iného waitress naďalej zahodí.
+        serve_options.update(
+            trusted_proxy=os.environ.get("TRUSTED_PROXY", "127.0.0.1"),
+            trusted_proxy_count=1,
+            trusted_proxy_headers={
+                "x-forwarded-for",
+                "x-forwarded-proto",
+                "x-forwarded-host",
+            },
+        )
+
     print(f"Server beží na http://{host}:{port} (vlákna: {threads}).")
     print("Zastavíš ho cez Ctrl+C.")
 
-    serve(app, host=host, port=port, threads=threads)
+    serve(app, **serve_options)
 
 
 def _run_create_user(username, role):

@@ -17,7 +17,18 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from flask import Blueprint, Flask, flash, jsonify, redirect, render_template, request, send_file, url_for
+from flask import (
+    Blueprint,
+    Flask,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    url_for,
+)
 from flask_login import (
     current_user,
     login_required,
@@ -37,6 +48,8 @@ from app.extensions import db, login_manager, migrate
 load_dotenv()
 
 from app.orm_models import ROLE_ADMIN, ROLE_EMPLOYEE, ROLE_MANAGER
+
+from app.services.login_throttle import LoginThrottle
 
 from app.services.access_service import (
     accessible_branch_ids,
@@ -66,13 +79,12 @@ from app.services.auth_service import (
     get_staff_users,
     get_user_by_employee_id,
     get_user_by_id,
-    get_user_by_username,
+    authenticate,
     set_manager_function,
     set_password,
     set_user_branches,
     set_username,
     username_exists,
-    verify_password,
 )
 
 from app.services.employee_service import (
@@ -376,6 +388,15 @@ def _is_safe_redirect_target(target):
     return not parsed.scheme and not parsed.netloc
 
 
+def _too_many_attempts_message(wait_seconds):
+    minutes = max(1, -(-wait_seconds // 60))
+
+    return (
+        "Príliš veľa neúspešných pokusov o prihlásenie. "
+        f"Skús to znova o {minutes} min."
+    )
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login_page():
     if current_user.is_authenticated:
@@ -387,11 +408,35 @@ def login_page():
     form = LoginForm()
 
     if form.validate_on_submit():
-        user = get_user_by_username(form.username.data)
+        throttle = current_app.extensions["login_throttle"]
+        client_ip = request.remote_addr or "unknown"
+        username_key = form.username.data.strip().lower()
 
-        if user is None or not verify_password(user, form.password.data):
+        wait_seconds = throttle.retry_after(client_ip, username_key)
+
+        if wait_seconds > 0:
+            current_app.logger.warning(
+                "Prihlásenie zablokované (príliš veľa pokusov): "
+                "user=%r ip=%s",
+                username_key[:80],
+                client_ip,
+            )
+            flash(_too_many_attempts_message(wait_seconds), "error")
+
+            return render_template("login.html", form=form), 429
+
+        user = authenticate(form.username.data, form.password.data)
+
+        if user is None:
+            throttle.record_failure(client_ip, username_key)
+            current_app.logger.warning(
+                "Neúspešné prihlásenie: user=%r ip=%s",
+                username_key[:80],
+                client_ip,
+            )
             flash("Nesprávne používateľské meno alebo heslo.", "error")
         else:
+            throttle.record_success(client_ip, username_key)
             login_user(user)
 
             if user.role == "employee":
@@ -515,13 +560,33 @@ def change_password_page():
     form = ChangePasswordForm()
 
     if form.validate_on_submit():
+        # Aj tu sa limituje hádanie (napr. pri odcudzenej session) -
+        # rovnakým mechanizmom ako pri prihlásení.
+        throttle = current_app.extensions["login_throttle"]
+        client_ip = request.remote_addr or "unknown"
+        throttle_key = f"zmena-hesla:{current_user.id}"
+
+        wait_seconds = throttle.retry_after(client_ip, throttle_key)
+
+        if wait_seconds > 0:
+            flash(_too_many_attempts_message(wait_seconds), "error")
+
+            return (
+                render_template("change_password.html", form=form),
+                429,
+            )
+
         changed = change_own_password(
             current_user.id,
             form.current_password.data,
             form.new_password.data,
         )
 
+        if not changed:
+            throttle.record_failure(client_ip, throttle_key)
+
         if changed:
+            throttle.record_success(client_ip, throttle_key)
             flash("Heslo bolo zmenené.", "success")
 
             if current_user.role == ROLE_EMPLOYEE:
@@ -2046,6 +2111,8 @@ def create_app(database_path=None):
     login_manager.login_view = "main.login_page"
     login_manager.login_message = "Prosím, prihlás sa."
     login_manager.login_message_category = "error"
+
+    app.extensions["login_throttle"] = LoginThrottle.from_env()
 
     app.register_blueprint(bp)
 

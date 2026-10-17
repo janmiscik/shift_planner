@@ -102,6 +102,10 @@ alebo príkazmi `python manage.py create-admin` a
 `python manage.py create-manager`. Každý si môže zmeniť vlastné heslo
 cez "Zmeniť heslo" v menu.
 
+Prihlasovanie je chránené pred hádaním hesiel: po 5 neúspešných
+pokusoch sa dvojica (IP, meno) na 15 minút zablokuje (limity sa dajú
+nastaviť v `.env`, pozri `DEPLOYMENT.md`).
+
 Oprávnenia routov určujú zoznamy `_*_ALLOWED_ENDPOINTS` v
 `app/web/app.py` (pre manažéra a zamestnanca platí zoznam povolených
 routov, nová routa je teda predvolene len pre admina). Test

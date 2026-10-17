@@ -213,4 +213,54 @@ def test_serve_respects_host_port_threads(monkeypatch):
 
     _run_manage(monkeypatch, "serve")
 
-    assert calls == {"host": "0.0.0.0", "port": 9000, "threads": 4}
+    assert calls["host"] == "0.0.0.0"
+    assert calls["port"] == 9000
+    assert calls["threads"] == 4
+
+
+def test_serve_trusts_forwarded_headers_only_from_trusted_proxy(monkeypatch):
+    """Za proxy musí waitress prijať X-Forwarded-* (inak by všetci
+    klienti mali jednu IP a limit prihlasovania by blokoval všetkých),
+    ale len od dôveryhodnej adresy proxy."""
+
+    import waitress
+
+    calls = {}
+    monkeypatch.setattr(
+        waitress, "serve", lambda app, **kwargs: calls.update(kwargs)
+    )
+    monkeypatch.setenv("SECRET_KEY", "z" * 64)
+    monkeypatch.setenv("BEHIND_PROXY", "1")
+    monkeypatch.delenv("TRUSTED_PROXY", raising=False)
+
+    _run_manage(monkeypatch, "serve")
+
+    assert calls["trusted_proxy"] == "127.0.0.1"
+    assert calls["trusted_proxy_count"] == 1
+    assert calls["trusted_proxy_headers"] == {
+        "x-forwarded-for",
+        "x-forwarded-proto",
+        "x-forwarded-host",
+    }
+
+    calls.clear()
+    monkeypatch.setenv("TRUSTED_PROXY", "10.0.0.5")
+
+    _run_manage(monkeypatch, "serve")
+
+    assert calls["trusted_proxy"] == "10.0.0.5"
+
+
+def test_serve_without_proxy_does_not_trust_forwarded_headers(monkeypatch):
+    import waitress
+
+    calls = {}
+    monkeypatch.setattr(
+        waitress, "serve", lambda app, **kwargs: calls.update(kwargs)
+    )
+    monkeypatch.setenv("SECRET_KEY", "w" * 64)
+    monkeypatch.delenv("BEHIND_PROXY", raising=False)
+
+    _run_manage(monkeypatch, "serve")
+
+    assert "trusted_proxy" not in calls

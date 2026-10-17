@@ -69,9 +69,12 @@ BEHIND_PROXY=1
 SESSION_COOKIE_SECURE=1
 ```
 
-> `BEHIND_PROXY=1` zapni **len ak** waitress počúva na `127.0.0.1`
-> (predvolené) a pred ním je Caddy. Inak by si klient vedel podvrhnúť IP
-> adresu a HTTPS hlavičky.
+> `BEHIND_PROXY=1` zapni, keď je pred appkou Caddy. Appka (waitress)
+> potom prijíma hlavičky `X-Forwarded-*` (skutočná IP klienta, HTTPS) len
+> od proxy na adrese `127.0.0.1`; ak proxy beží na inom serveri, nastav
+> `TRUSTED_PROXY=<jeho adresa>`. Hlavičky od čohokoľvek iného sa zahodia.
+> Bez `BEHIND_PROXY=1` by appka videla všetkých klientov ako adresu
+> proxy - a ochrana prihlásenia (nižšie) by ich zablokovala naraz.
 
 ## 3. Databáza
 
@@ -208,12 +211,35 @@ sudo systemctl restart shift-planner
 `pg_dump`. Ak `pg_dump` nie je k dispozícii, **migráciu nespustí**
 (ochrana dát); na vlastné riziko ju vieš spustiť s `--no-backup`.
 
+## Ochrana prihlásenia
+
+- Po **5 neúspešných pokusoch** o prihlásenie s tým istým menom z tej
+  istej IP adresy sa táto dvojica zablokuje na **15 minút** (aj so
+  správnym heslom - inak by sa dalo hádať ďalej). Skutočný používateľ sa
+  z inej adresy prihlási bez problémov, takže cudzí človek mu účet
+  nezamkne.
+- Po **20 neúspešných pokusoch** z jednej IP adresy (s ľubovoľnými
+  menami) sa zablokuje celá adresa na 15 minút.
+- Neexistujúce meno sa správa rovnako ako existujúce (rovnaká správa aj
+  čas odpovede), takže sa nedá zistiť, ktoré mená existujú.
+- Rovnako sa limituje hádanie aktuálneho hesla pri zmene hesla.
+- Každý neúspešný pokus a zablokovanie sa zapíše do logu
+  (`journalctl -u shift-planner -f`) s menom a IP adresou, bez hesla.
+
+Limity sa nastavujú v `.env`: `LOGIN_MAX_ATTEMPTS` (5),
+`LOGIN_IP_MAX_ATTEMPTS` (20), `LOGIN_LOCKOUT_MINUTES` (15).
+
+Počítadlá sú v pamäti appky: po jej reštarte sa vynulujú (blokovanie sa
+len uvoľní). Ak človek zabudne heslo a zablokuje sa, stačí počkať,
+alebo admin reštartuje appku / resetuje heslo.
+
 ## Kontrolný zoznam
 
 - [ ] `SECRET_KEY` je vlastný, náhodný (nie z `.env.example`)
 - [ ] `DATABASE_URL` mieri na PostgreSQL, heslo databázy je silné
 - [ ] waitress počúva len na `127.0.0.1`, verejne je dostupný len Caddy
 - [ ] `BEHIND_PROXY=1` a `SESSION_COOKIE_SECURE=1`
+- [ ] v logu pri neúspešnom prihlásení je skutočná IP klienta (nie `127.0.0.1`)
 - [ ] `https://...` funguje a `http://...` presmeruje na HTTPS (Caddy to robí sám)
 - [ ] firewall: otvorené len 80 a 443 (PostgreSQL port 5432 nie je z internetu dostupný)
 - [ ] nočná záloha beží a zálohy sa kopírujú mimo servera

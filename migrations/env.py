@@ -11,7 +11,10 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-fileConfig(config.config_file_name)
+# disable_existing_loggers=False: predvolené True by po spustení migrácie
+# vypnulo všetky už vytvorené loggery (aj logger appky), takže by sa
+# napr. zablokované/neúspešné prihlásenia prestali zapisovať do logu.
+fileConfig(config.config_file_name, disable_existing_loggers=False)
 logger = logging.getLogger('alembic.env')
 
 

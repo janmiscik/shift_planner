@@ -200,6 +200,29 @@ def verify_password(user, password):
     return check_password_hash(user.password_hash, password)
 
 
+# Hash, voči ktorému sa overuje heslo pri neexistujúcom používateľovi -
+# aby odpoveď trvala rovnako dlho ako pri existujúcom a nedalo sa
+# podľa času zistiť, ktoré mená existujú.
+_DUMMY_PASSWORD_HASH = generate_password_hash("nepouzitelne-heslo")
+
+
+def authenticate(username, password):
+    """Vráti používateľa, ak meno a heslo sedia, inak ``None``.
+    Trvá približne rovnako dlho pri neexistujúcom mene aj zlom hesle."""
+
+    user = get_user_by_username(username)
+
+    if user is None:
+        check_password_hash(_DUMMY_PASSWORD_HASH, password)
+
+        return None
+
+    if not verify_password(user, password):
+        return None
+
+    return user
+
+
 def set_password(user_id, new_password):
     """Nastaví nové heslo existujúcemu účtu (napr. reset manažérom)."""
 
