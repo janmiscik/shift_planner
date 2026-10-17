@@ -215,6 +215,70 @@ class Shift(db.Model):
         )
 
 
+class ShiftTemplate(db.Model):
+    """Šablóna týždňa smien - pomenovaný zoznam smien (deň v týždni,
+    zamestnanec, čas, typ, oddelenie) patriaci do jednej pobočky.
+    Dá sa použiť na ľubovoľný týždeň (``week_plan_service``)."""
+
+    __tablename__ = "shift_templates"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "branch_id", "name", name="uq_shift_template_branch_name"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    branch_id = db.Column(
+        db.Integer,
+        db.ForeignKey("branches.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at = db.Column(db.String, nullable=True)
+
+    branch = db.relationship("Branch")
+    entries = db.relationship(
+        "ShiftTemplateEntry",
+        back_populates="template",
+        cascade="all, delete-orphan",
+        order_by="ShiftTemplateEntry.weekday, ShiftTemplateEntry.start_time",
+    )
+
+    def __repr__(self):
+        return f"<ShiftTemplate {self.id} {self.name}>"
+
+
+class ShiftTemplateEntry(db.Model):
+    """Jedna smena v šablóne. ``weekday``: 0 = pondelok ... 6 = nedeľa."""
+
+    __tablename__ = "shift_template_entries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(
+        db.Integer,
+        db.ForeignKey("shift_templates.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    weekday = db.Column(db.Integer, nullable=False)
+    employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    start_time = db.Column(db.String, nullable=False)
+    end_time = db.Column(db.String, nullable=False)
+    shift_type = db.Column(db.String, nullable=False)
+    department_id = db.Column(
+        db.Integer,
+        db.ForeignKey("departments.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+
+    template = db.relationship("ShiftTemplate", back_populates="entries")
+    employee = db.relationship("Employee")
+    department = db.relationship("Department")
+
+
 class Absence(db.Model):
     """Neprítomnosť zamestnanca (dovolenka, PN, OČR, náhradné voľno).
 

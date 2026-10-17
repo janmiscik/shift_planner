@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Šablóny smien - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Šablóny smien</h1>
+
+        <p>
+            Uložený týždeň smien, ktorý vieš použiť na ľubovoľný ďalší
+            týždeň. Pri použití sa každá smena overí rovnako ako pri
+            ručnom pridaní.
+        </p>
+    </div>
+
+    <a class="btn btn-secondary" href="/shifts/copy-week">
+        ⧉ Kopírovať týždeň
+    </a>
+
+</div>
+
+
+<div class="card">
+
+    {% if templates %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Názov</th>
+                    <th>Pobočka</th>
+                    <th>Smien</th>
+                    <th>Použiť na týždeň</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for template in templates %}
+
+                    <tr>
+
+                        <td><strong>{{ template[1] }}</strong></td>
+
+                        <td>{{ template[3] }}</td>
+
+                        <td>{{ template[4] }}</td>
+
+                        <td>
+
+                            <form
+                                method="POST"
+                                action="/shifts/templates/{{ template[0] }}/apply"
+                                style="display: flex; gap: 8px; align-items: center;"
+                            >
+
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="preview">
+
+                                <input
+                                    type="date"
+                                    name="target_date"
+                                    value="{{ target_date }}"
+                                    required
+                                >
+
+                                <button type="submit" class="btn btn-small">
+                                    Náhľad
+                                </button>
+
+                            </form>
+
+                        </td>
+
+                        <td class="actions">
+
+                            <form
+                                method="POST"
+                                action="/shifts/templates/{{ template[0] }}/delete"
+                                onsubmit="return confirm('Naozaj chceš zmazať túto šablónu?');"
+                            >
+
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-delete btn-small"
+                                >
+                                    🗑️ Zmazať
+                                </button>
+
+                            </form>
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+            <p>
+                Zatiaľ nemáš žiadnu šablónu. Ulož prvú z existujúceho
+                týždňa nižšie.
+            </p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+
+<div class="card" style="margin-top: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Uložiť týždeň ako šablónu
+    </h3>
+
+    {% if branches %}
+
+    <form method="POST" action="/shifts/templates/save">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
+        <div class="form-group">
+
+            <label for="branch_id">
+                Pobočka
+            </label>
+
+            <select id="branch_id" name="branch_id" required>
+
+                {% for branch in branches %}
+                    <option value="{{ branch[0] }}">{{ branch[1] }}</option>
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="source_date">
+                Z týždňa (ľubovoľný deň v ňom)
+            </label>
+
+            <input
+                type="date"
+                id="source_date"
+                name="source_date"
+                value="{{ source_date }}"
+                required
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="name">
+                Názov šablóny
+            </label>
+
+            <input
+                type="text"
+                id="name"
+                name="name"
+                placeholder="Napr. Štandardný týždeň"
+                maxlength="100"
+                required
+            >
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
+                Uložiť šablónu
+            </button>
+
+        </div>
+
+    </form>
+
+    {% else %}
+
+        <p>
+            Nemáš pridelenú žiadnu aktívnu pobočku.
+        </p>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

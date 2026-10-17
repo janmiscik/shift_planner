@@ -112,6 +112,24 @@ routov, nová routa je teda predvolene len pre admina). Test
 `test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
 pri novej route nerozhodneš, kto ju smie používať.
 
+## Kopírovanie týždňa a šablóny smien
+
+Na stránke **Smeny** (manažér a admin, v rámci svojich pobočiek):
+
+- **Kopírovať týždeň** (`/shifts/copy-week`) - vyber pobočku, zdrojový a
+  cieľový týždeň (stačí ľubovoľný deň v ňom). Najprv sa zobrazí náhľad,
+  nič sa neuloží, kým nepotvrdíš.
+- **Šablóny** (`/shifts/templates`) - uloží smeny jednej pobočky z
+  vybraného týždňa ako pomenovanú šablónu, ktorú potom použiješ na
+  ľubovoľný ďalší týždeň (opäť s náhľadom). Názov šablóny je jedinečný v
+  rámci pobočky.
+
+Každá kopírovaná smena prejde rovnakými pravidlami ako ručne pridaná
+(prekrytie, odpočinok, týždenné fondy, absencie, oddelenie). Smena, ktorá
+by pravidlo porušila, sa **preskočí a uvedie sa dôvod** - ostatné sa
+vytvoria. Preskočí sa aj smena neaktívneho zamestnanca a smena, ktorá v
+cieľovom týždni už je. Opakované kopírovanie preto nevytvára duplicity.
+
 ## Nasadenie pre pobočky
 
 Pre reálnu prevádzku s viacerými pobočkami (PostgreSQL, produkčný

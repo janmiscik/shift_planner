@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {{ title }} - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>{{ title }}</h1>
+
+        <p>
+            {{ description }}
+        </p>
+    </div>
+
+</div>
+
+
+<div class="card">
+
+    {% if committed %}
+
+        <p>
+            <strong>Hotovo.</strong>
+            Vytvorených smien: <strong>{{ created_count }}</strong>,
+            preskočených: <strong>{{ skipped_count }}</strong>.
+        </p>
+
+    {% else %}
+
+        <p>
+            <strong>Náhľad - zatiaľ sa nič neuložilo.</strong>
+            Vytvorí sa smien: <strong>{{ created_count }}</strong>,
+            preskočí sa: <strong>{{ skipped_count }}</strong>
+            (smena, ktorá by porušila pravidlá, sa preskočí a uvedie sa
+            dôvod).
+        </p>
+
+    {% endif %}
+
+    <table>
+
+        <thead>
+
+            <tr>
+                <th>Dátum</th>
+                <th>Zamestnanec</th>
+                <th>Čas</th>
+                <th>Typ</th>
+                <th>Oddelenie</th>
+                <th>Výsledok</th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            {% for row in rows %}
+
+                <tr>
+
+                    <td>
+                        {{ row.shift_date }}
+                        <br>
+                        <small>{{ row.weekday_name }}</small>
+                    </td>
+
+                    <td>{{ row.entry.employee_name }}</td>
+
+                    <td>
+                        {{ row.entry.start_time }} – {{ row.entry.end_time }}
+                    </td>
+
+                    <td>{{ row.entry.shift_type }}</td>
+
+                    <td>{{ row.entry.department_name or "—" }}</td>
+
+                    <td>
+
+                        {% if row.status == "create" %}
+
+                            <span class="status-active">
+                                {% if committed %}Vytvorená{% else %}Vytvorí sa{% endif %}
+                            </span>
+
+                        {% else %}
+
+                            <span class="status-inactive">
+                                Preskočená
+                            </span>
+
+                            <ul style="margin: 6px 0 0 18px; padding: 0;">
+                                {% for reason in row.reasons %}
+                                    <li><small>{{ reason }}</small></li>
+                                {% endfor %}
+                            </ul>
+
+                        {% endif %}
+
+                    </td>
+
+                </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+
+    <div class="actions" style="margin-top: 20px;">
+
+        {% if committed %}
+
+            <a class="btn" href="{{ calendar_url }}">
+                Zobraziť v kalendári
+            </a>
+
+            <a class="btn btn-secondary" href="{{ back_url }}">
+                Späť
+            </a>
+
+        {% else %}
+
+            {% if created_count %}
+
+                <form method="post" action="{{ form_action }}">
+
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    {% for name, value in hidden.items() %}
+                        <input type="hidden" name="{{ name }}" value="{{ value }}">
+                    {% endfor %}
+
+                    <input
+                        type="hidden"
+                        name="action"
+                        value="{{ 'apply' if 'templates' in form_action else 'copy' }}"
+                    >
+
+                    <button type="submit">
+                        Vytvoriť {{ created_count }} smien
+                    </button>
+
+                </form>
+
+            {% else %}
+
+                <p>
+                    <small>Nie je čo vytvoriť - všetky smeny by sa preskočili.</small>
+                </p>
+
+            {% endif %}
+
+            <a class="btn btn-secondary" href="{{ back_url }}">
+                Zrušiť
+            </a>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}

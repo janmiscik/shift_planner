@@ -5,25 +5,28 @@ Riadky oddelenia (``get_department`` / ``get_departments``) majú tvar:
 Názov oddelenia je jedinečný v rámci pobočky.
 """
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.extensions import db
 from app.orm_models import Branch, Department
+from app.services.text_utils import same_name
 
 
 def department_name_exists(name, branch_id, exclude_department_id=None):
     """Overí, či už v danej pobočke existuje oddelenie s daným názvom
-    (bez ohľadu na veľkosť písmen)."""
+    (bez ohľadu na veľkosť písmen aj diakritiku písmen typu Š/š)."""
 
-    query = select(Department.id).where(
-        func.lower(Department.name) == func.lower(name),
-        Department.branch_id == branch_id,
+    rows = db.session.execute(
+        select(Department.id, Department.name).where(
+            Department.branch_id == branch_id
+        )
+    ).all()
+
+    return any(
+        same_name(existing_name, name)
+        and department_id != exclude_department_id
+        for department_id, existing_name in rows
     )
-
-    if exclude_department_id is not None:
-        query = query.where(Department.id != exclude_department_id)
-
-    return db.session.execute(query).first() is not None
 
 
 def add_department(name, min_staff=None, branch_id=None):

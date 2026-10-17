@@ -12,7 +12,7 @@ pobočiek rieši ``app/services/access_service.py``.
 """
 
 import os
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -50,6 +50,17 @@ load_dotenv()
 from app.orm_models import ROLE_ADMIN, ROLE_EMPLOYEE, ROLE_MANAGER
 
 from app.services.login_throttle import LoginThrottle
+from app.services.week_plan_service import (
+    delete_template,
+    entries_from_template,
+    entries_from_week,
+    get_template,
+    get_templates,
+    parse_week_start,
+    run_plan,
+    save_template_from_week,
+    week_label,
+)
 
 from app.services.access_service import (
     accessible_branch_ids,
@@ -227,6 +238,11 @@ _MANAGER_ALLOWED_ENDPOINTS = (
         "main.add_shift_page",
         "main.edit_shift_page",
         "main.delete_shift_page",
+        "main.copy_week_page",
+        "main.shift_templates_page",
+        "main.save_shift_template_page",
+        "main.delete_shift_template_page",
+        "main.apply_shift_template_page",
         "main.absences_page",
         "main.add_absence_page",
         "main.edit_absence_page",
@@ -1465,6 +1481,198 @@ def delete_shift_page(shift_id):
     delete_shift(shift_id)
 
     return redirect("/shifts")
+
+
+# ---------------------------------------------------------------------
+# Plánovanie týždňa: kopírovanie týždňa a šablóny smien
+# ---------------------------------------------------------------------
+
+def _plannable_branches():
+    """Aktívne pobočky, v ktorých smie používateľ plánovať."""
+
+    return [branch for branch in _accessible_branches() if branch[2]]
+
+
+def _this_monday():
+    return parse_week_start(date.today().isoformat())
+
+
+def _plan_result_page(
+    *,
+    entries,
+    target,
+    commit,
+    title,
+    description,
+    form_action,
+    hidden,
+    back_url,
+):
+    rows = run_plan(entries, target, commit=commit)
+
+    created_count = sum(1 for row in rows if row.status == "create")
+
+    return render_template(
+        "week_plan.html",
+        title=title,
+        description=description,
+        rows=rows,
+        created_count=created_count,
+        skipped_count=len(rows) - created_count,
+        committed=commit,
+        form_action=form_action,
+        hidden=hidden,
+        back_url=back_url,
+        target_week=week_label(target),
+        calendar_url=(
+            f"/calendar?year={target.year}&month={target.month}"
+        ),
+    )
+
+
+@bp.route("/shifts/copy-week", methods=["GET", "POST"])
+def copy_week_page():
+    branches = _plannable_branches()
+    allowed_ids = {branch[0] for branch in branches}
+
+    values = {
+        "branch_id": request.values.get("branch_id", ""),
+        "source_date": request.values.get("source_date")
+        or _this_monday().isoformat(),
+        "target_date": request.values.get("target_date")
+        or (_this_monday() + timedelta(days=7)).isoformat(),
+    }
+
+    if request.method == "POST":
+        action = request.form.get("action", "preview")
+        branch_id = request.form.get("branch_id", type=int)
+        source = parse_week_start(request.form.get("source_date"))
+        target = parse_week_start(request.form.get("target_date"))
+
+        if branch_id not in allowed_ids:
+            flash("Vyber pobočku.", "error")
+        elif source is None or target is None:
+            flash(
+                "Zadaj platný dátum zdrojového aj cieľového týždňa.",
+                "error",
+            )
+        elif source == target:
+            flash("Zdrojový a cieľový týždeň sú rovnaké.", "error")
+        else:
+            entries = entries_from_week(source, branch_id)
+
+            if not entries:
+                flash(
+                    "V zdrojovom týždni nie sú v tejto pobočke žiadne "
+                    "smeny.",
+                    "error",
+                )
+            else:
+                return _plan_result_page(
+                    entries=entries,
+                    target=target,
+                    commit=(action == "copy"),
+                    title="Kopírovanie týždňa",
+                    description=(
+                        f"{week_label(source)} → {week_label(target)}"
+                    ),
+                    form_action="/shifts/copy-week",
+                    hidden={
+                        "branch_id": branch_id,
+                        "source_date": source.isoformat(),
+                        "target_date": target.isoformat(),
+                    },
+                    back_url="/shifts/copy-week",
+                )
+
+    return render_template(
+        "copy_week.html", branches=branches, values=values
+    )
+
+
+@bp.route("/shifts/templates")
+def shift_templates_page():
+    return render_template(
+        "shift_templates.html",
+        templates=get_templates(accessible_branch_ids(current_user)),
+        branches=_plannable_branches(),
+        source_date=_this_monday().isoformat(),
+        target_date=(_this_monday() + timedelta(days=7)).isoformat(),
+    )
+
+
+@bp.route("/shifts/templates/save", methods=["POST"])
+def save_shift_template_page():
+    allowed_ids = {branch[0] for branch in _plannable_branches()}
+
+    branch_id = request.form.get("branch_id", type=int)
+    source = parse_week_start(request.form.get("source_date"))
+
+    if branch_id not in allowed_ids:
+        flash("Vyber pobočku.", "error")
+    elif source is None:
+        flash("Zadaj platný dátum týždňa.", "error")
+    else:
+        template_id, error = save_template_from_week(
+            request.form.get("name"), branch_id, source
+        )
+
+        if error:
+            flash(error, "error")
+        else:
+            flash("Šablóna bola uložená.", "success")
+
+    return redirect("/shifts/templates")
+
+
+@bp.route("/shifts/templates/<int:template_id>/delete", methods=["POST"])
+def delete_shift_template_page(template_id):
+    template = get_template(template_id)
+
+    if template is None or not _branch_in_access(template[2]):
+        return "Šablóna neexistuje.", 404
+
+    delete_template(template_id)
+    flash("Šablóna bola zmazaná.", "success")
+
+    return redirect("/shifts/templates")
+
+
+@bp.route("/shifts/templates/<int:template_id>/apply", methods=["GET", "POST"])
+def apply_shift_template_page(template_id):
+    template = get_template(template_id)
+
+    if template is None or not _branch_in_access(template[2]):
+        return "Šablóna neexistuje.", 404
+
+    if request.method == "GET":
+        return redirect("/shifts/templates")
+
+    action = request.form.get("action", "preview")
+    target = parse_week_start(request.form.get("target_date"))
+
+    if target is None:
+        flash("Zadaj platný dátum cieľového týždňa.", "error")
+
+        return redirect("/shifts/templates")
+
+    entries = entries_from_template(template_id)
+
+    if not entries:
+        flash("Šablóna neobsahuje žiadne smeny.", "error")
+
+        return redirect("/shifts/templates")
+
+    return _plan_result_page(
+        entries=entries,
+        target=target,
+        commit=(action == "apply"),
+        title=f"Šablóna „{template[1]}“",
+        description=f"Použitie na týždeň {week_label(target)}",
+        form_action=f"/shifts/templates/{template_id}/apply",
+        hidden={"target_date": target.isoformat()},
+        back_url="/shifts/templates",
+    )
 
 
 # ---------------------------------------------------------------------

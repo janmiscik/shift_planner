@@ -4,22 +4,21 @@ from sqlalchemy import func, select
 
 from app.extensions import db
 from app.orm_models import Branch, Department, Employee
+from app.services.text_utils import same_name
 
 DEFAULT_BRANCH_NAME = "Hlavná pobočka"
 
 
 def branch_name_exists(name, exclude_branch_id=None):
     """Overí, či už existuje pobočka s daným názvom (bez ohľadu na
-    veľkosť písmen)."""
+    veľkosť písmen aj diakritiku písmen typu Š/š)."""
 
-    query = select(Branch.id).where(
-        func.lower(Branch.name) == func.lower(name)
+    rows = db.session.execute(select(Branch.id, Branch.name)).all()
+
+    return any(
+        same_name(existing_name, name) and branch_id != exclude_branch_id
+        for branch_id, existing_name in rows
     )
-
-    if exclude_branch_id is not None:
-        query = query.where(Branch.id != exclude_branch_id)
-
-    return db.session.execute(query).first() is not None
 
 
 def add_branch(name):

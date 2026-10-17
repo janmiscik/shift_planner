@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Kopírovať týždeň - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Kopírovať týždeň</h1>
+
+        <p>
+            Skopíruje všetky smeny zvolenej pobočky z jedného týždňa do
+            druhého (rovnaké dni, časy, zamestnanci a oddelenia). Pred
+            uložením uvidíš náhľad.
+        </p>
+    </div>
+
+    <a class="btn btn-secondary" href="/shifts/templates">
+        📋 Šablóny
+    </a>
+
+</div>
+
+
+<div class="card">
+
+    {% if branches %}
+
+    <form method="post">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="preview">
+
+
+        <div class="form-group">
+
+            <label for="branch_id">
+                Pobočka
+            </label>
+
+            <select id="branch_id" name="branch_id" required>
+
+                {% for branch in branches %}
+
+                    <option
+                        value="{{ branch[0] }}"
+                        {% if values.branch_id|string == branch[0]|string %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ branch[1] }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="source_date">
+                Skopírovať z týždňa (ľubovoľný deň v ňom)
+            </label>
+
+            <input
+                type="date"
+                id="source_date"
+                name="source_date"
+                value="{{ values.source_date }}"
+                required
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="target_date">
+                Do týždňa (ľubovoľný deň v ňom)
+            </label>
+
+            <input
+                type="date"
+                id="target_date"
+                name="target_date"
+                value="{{ values.target_date }}"
+                required
+            >
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
+                Zobraziť náhľad
+            </button>
+
+            <a href="/shifts" class="btn btn-secondary">
+                Zrušiť
+            </a>
+
+        </div>
+
+    </form>
+
+    {% else %}
+
+        <div class="empty">
+            <p>
+                Nemáš pridelenú žiadnu aktívnu pobočku, v ktorej by si
+                mohol plánovať.
+            </p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}
