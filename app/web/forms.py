@@ -19,6 +19,8 @@ from wtforms.validators import (
     Optional,
 )
 
+from app.services.leave_request_service import LEAVE_REQUEST_TYPES
+
 
 class BranchForm(FlaskForm):
     name = StringField(
@@ -180,6 +182,28 @@ class AbsenceForm(FlaskForm):
     )
     note = StringField(
         "Poznámka",
+        validators=[Optional(), Length(max=255)],
+    )
+
+
+class LeaveRequestForm(FlaskForm):
+    """Žiadosť zamestnanca o voľno (``/my-requests``)."""
+
+    absence_type = SelectField(
+        "Druh voľna",
+        choices=[(name, name) for name in LEAVE_REQUEST_TYPES],
+        validators=[DataRequired(message="Vyber druh voľna.")],
+    )
+    start_date = DateField(
+        "Od",
+        validators=[DataRequired(message="Zadaj dátum začiatku.")],
+    )
+    end_date = DateField(
+        "Do",
+        validators=[DataRequired(message="Zadaj dátum konca.")],
+    )
+    note = StringField(
+        "Poznámka pre manažéra",
         validators=[Optional(), Length(max=255)],
     )
 

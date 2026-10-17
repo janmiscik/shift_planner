@@ -64,6 +64,11 @@
                     <span>Môj rozpis</span>
                 </a>
 
+                <a href="/my-requests">
+                    <span class="nav-icon">🌴</span>
+                    <span>Žiadosti o voľno</span>
+                </a>
+
                 {% if employees_can_view_calendar %}
 
                     <a href="/calendar">
@@ -85,6 +90,11 @@
                     <a href="/my-schedule">
                         <span class="nav-icon">📅</span>
                         <span>Môj rozpis</span>
+                    </a>
+
+                    <a href="/my-requests">
+                        <span class="nav-icon">🌴</span>
+                        <span>Moje žiadosti o voľno</span>
                     </a>
 
                 {% endif %}
@@ -112,6 +122,11 @@
                 <a href="/absences">
                     <span class="nav-icon">🌴</span>
                     <span>Absencie</span>
+                </a>
+
+                <a href="/leave-requests">
+                    <span class="nav-icon">📝</span>
+                    <span>Žiadosti o voľno{% if pending_leave_requests %} ({{ pending_leave_requests }}){% endif %}</span>
                 </a>
 
                 {% if current_user.is_authenticated and current_user.role == "admin" %}

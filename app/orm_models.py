@@ -316,6 +316,48 @@ class Absence(db.Model):
         )
 
 
+class LeaveRequest(db.Model):
+    """Žiadosť zamestnanca o voľno (dovolenka, náhradné voľno).
+
+    Stav: ``pending`` (čaká na schválenie), ``approved`` (schválená -
+    vznikla z nej neprítomnosť ``absence_id``), ``rejected``
+    (zamietnutá), ``cancelled`` (zrušená zamestnancom).
+    ``start_date``/``end_date`` sú vrátane (ISO reťazce ako pri
+    neprítomnostiach).
+    """
+
+    __tablename__ = "leave_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    absence_type = db.Column(db.String, nullable=False)
+    start_date = db.Column(db.String, nullable=False)
+    end_date = db.Column(db.String, nullable=False)
+    note = db.Column(db.String, nullable=True)
+    status = db.Column(
+        db.String, nullable=False, default="pending", server_default="pending"
+    )
+    created_at = db.Column(db.String, nullable=True)
+    decided_at = db.Column(db.String, nullable=True)
+    decided_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    decision_note = db.Column(db.String, nullable=True)
+    absence_id = db.Column(
+        db.Integer,
+        db.ForeignKey("absences.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    employee = db.relationship("Employee")
+
+
 class User(UserMixin, db.Model):
     """Prihlasovací účet.
 

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Žiadosti o voľno - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Žiadosti o voľno</h1>
+
+        <p>
+            Žiadosti zamestnancov z tvojich pobočiek. Schválená žiadosť sa
+            zapíše do absencií a plánovanie smien ju rešpektuje.
+        </p>
+    </div>
+
+</div>
+
+{% include "_branch_filter.html" %}
+
+<div class="calendar-filter" style="margin-bottom: 16px;">
+
+    <form method="GET">
+
+        {% if selected_branch_id %}
+            <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+        {% endif %}
+
+        <label for="status">
+            Stav
+        </label>
+
+        <select id="status" name="status" onchange="this.form.submit()">
+
+            <option value="pending" {% if status == "pending" %}selected{% endif %}>
+                Čakajúce
+            </option>
+
+            <option value="approved" {% if status == "approved" %}selected{% endif %}>
+                Schválené
+            </option>
+
+            <option value="rejected" {% if status == "rejected" %}selected{% endif %}>
+                Zamietnuté
+            </option>
+
+            <option value="cancelled" {% if status == "cancelled" %}selected{% endif %}>
+                Zrušené
+            </option>
+
+            <option value="all" {% if status == "all" %}selected{% endif %}>
+                Všetky
+            </option>
+
+        </select>
+
+    </form>
+
+</div>
+
+
+<div class="card">
+
+    {% if requests %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Zamestnanec</th>
+                    {% if branches|length > 1 %}
+                        <th>Pobočka</th>
+                    {% endif %}
+                    <th>Druh</th>
+                    <th>Obdobie</th>
+                    <th>Dní</th>
+                    <th>Poznámka</th>
+                    <th>Stav</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for item in requests %}
+
+                    <tr>
+
+                        <td>
+                            <strong>{{ item[2] }} {{ item[3] }}</strong>
+                            <br>
+                            <small>podaná {{ item[11] }}</small>
+                        </td>
+
+                        {% if branches|length > 1 %}
+                            <td>{{ item[5] }}</td>
+                        {% endif %}
+
+                        <td>{{ item[6] }}</td>
+
+                        <td>
+                            {{ item[7] }}
+                            {% if item[8] != item[7] %}
+                                – {{ item[8] }}
+                            {% endif %}
+                        </td>
+
+                        <td>{{ day_count(item[7], item[8]) }}</td>
+
+                        <td>{{ item[9] or "—" }}</td>
+
+                        <td>
+
+                            {% if item[10] == "approved" %}
+                                <span class="status-active">{{ status_labels[item[10]] }}</span>
+                            {% else %}
+                                <span class="status-inactive">{{ status_labels[item[10]] }}</span>
+                            {% endif %}
+
+                            {% if item[13] %}
+                                <br><small>vybavil: {{ item[13] }}</small>
+                            {% endif %}
+
+                            {% if item[14] %}
+                                <br><small>{{ item[14] }}</small>
+                            {% endif %}
+
+                        </td>
+
+                        <td class="actions">
+
+                            {% if item[10] == "pending" %}
+
+                                {% if shift_conflicts.get(item[0]) %}
+                                    <small>
+                                        ⚠ Má v tomto období
+                                        {{ shift_conflicts[item[0]] }}
+                                        naplánovaných smien.
+                                    </small>
+                                    <br>
+                                {% endif %}
+
+                                {% if own_employee_id and item[1] == own_employee_id %}
+
+                                    <small>Vlastnú žiadosť vybaví iný manažér alebo admin.</small>
+
+                                {% else %}
+
+                                    <form method="POST">
+
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                        <input
+                                            type="text"
+                                            name="decision_note"
+                                            maxlength="255"
+                                            placeholder="Poznámka / dôvod zamietnutia"
+                                            style="margin-bottom: 6px;"
+                                        >
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-success btn-small"
+                                            formaction="/leave-requests/{{ item[0] }}/approve"
+                                        >
+                                            ✅ Schváliť
+                                        </button>
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-delete btn-small"
+                                            formaction="/leave-requests/{{ item[0] }}/reject"
+                                        >
+                                            ✖ Zamietnuť
+                                        </button>
+
+                                    </form>
+
+                                {% endif %}
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+            <p>
+                {% if status == "pending" %}
+                    Žiadne čakajúce žiadosti.
+                {% else %}
+                    V tomto filtri nie sú žiadne žiadosti.
+                {% endif %}
+            </p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

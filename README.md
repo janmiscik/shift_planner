@@ -74,8 +74,8 @@ pobočky.
 | Rola | Čo smie |
 |---|---|
 | **administrátor** | všetko: pobočky (`/branches`), účty adminov a manažérov (`/users`), zamestnanci, oddelenia, zálohy, všetky pobočky |
-| **manažér** | vytvára, upravuje a maže smeny a absencie, kalendár a exporty - **len na pobočkách, ktoré mu admin pridelil**. Zamestnancov a oddelenia vidí len na čítanie |
-| **zamestnanec** | len vlastný rozpis (`/my-schedule`) s exportom `.xlsx`/`.pdf`/`.ics`. Smeny ostatných nevidí |
+| **manažér** | vytvára, upravuje a maže smeny a absencie, kalendár a exporty a schvaľuje žiadosti o voľno - **len na pobočkách, ktoré mu admin pridelil**. Zamestnancov a oddelenia vidí len na čítanie |
+| **zamestnanec** | len vlastný (zverejnený) rozpis (`/my-schedule`) s exportom `.xlsx`/`.pdf`/`.ics` a žiadosti o voľno (`/my-requests`). Smeny ostatných nevidí |
 
 Voliteľne sa dá zamestnancom zapnúť aj kalendár svojej pobočky len na
 čítanie (`EMPLOYEES_CAN_VIEW_BRANCH_CALENDAR=1` v `.env`); predvolene je
@@ -111,6 +111,28 @@ Oprávnenia routov určujú zoznamy `_*_ALLOWED_ENDPOINTS` v
 routov, nová routa je teda predvolene len pre admina). Test
 `test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
 pri novej route nerozhodneš, kto ju smie používať.
+
+## Žiadosti o voľno
+
+Zamestnanec (aj manažér, ktorý je zároveň zamestnancom) podáva žiadosť v
+menu **Žiadosti o voľno** (`/my-requests`): druh (dovolenka alebo
+náhradné voľno), obdobie od-do a voliteľná poznámka. PN a OČR žiadosťou
+nevybavuje - zapisuje ich manažér medzi absencie.
+
+- Žiadosť nemožno podať spätne (začiatok je dnes alebo neskôr), ani na
+  obdobie, kde už má zamestnanec absenciu alebo čakajúcu žiadosť.
+  Čakajúcu žiadosť môže sám zrušiť.
+- Manažér/admin vidí žiadosti zo svojich pobočiek v menu **Žiadosti o
+  voľno** (`/leave-requests`) s počtom čakajúcich v menu. Pri každej vidí
+  aj to, koľko smien má zamestnanec v danom období naplánovaných.
+- **Schválenie** vytvorí bežnú absenciu - kalendár ju zobrazí a
+  plánovanie smien na ten deň ju rešpektuje. Po schválení appka upozorní,
+  ak zamestnanec v období ešte má naplánované smeny. **Zamietnutie**
+  vyžaduje dôvod, ktorý zamestnanec uvidí.
+- Vlastnú žiadosť si manažér nemôže schváliť - vybaví ju iný manažér alebo
+  admin.
+- Upozornenia e-mailom zatiaľ nie sú: zamestnanec vidí stav žiadosti na
+  svojej stránke, manažér počet čakajúcich v menu.
 
 ## Zverejnenie rozpisu (koncept / zverejnené)
 
