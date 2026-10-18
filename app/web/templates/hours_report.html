@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Prehľad hodín - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+{% macro h(value) -%}
+    {{ ('%.2f' % value)|replace('.', ',') }}
+{%- endmacro %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Prehľad hodín</h1>
+
+        <p>
+            Mesačný súhrn hodín na zamestnanca - podklad pre mzdy. Smena
+            sa počíta do mesiaca podľa dátumu jej začiatku, hodiny sú bez
+            odpočítania prestávok.
+        </p>
+    </div>
+
+    <div class="actions">
+
+        <a
+            class="btn btn-secondary"
+            href="/reports/hours/export.xlsx{% if query_string %}?{{ query_string }}{% endif %}"
+        >
+            ⬇ Export .xlsx
+        </a>
+
+        <a
+            class="btn btn-secondary"
+            href="/reports/hours/export.csv{% if query_string %}?{{ query_string }}{% endif %}"
+        >
+            ⬇ Export .csv
+        </a>
+
+    </div>
+
+</div>
+
+
+<div class="calendar-filter" style="margin-bottom: 16px;">
+
+    <form method="GET">
+
+        {% if branches and branches|length > 1 %}
+
+            <label for="branch_id">
+                Pobočka
+            </label>
+
+            <select id="branch_id" name="branch_id">
+
+                <option value="">Všetky pobočky</option>
+
+                {% for branch in branches %}
+
+                    <option
+                        value="{{ branch[0] }}"
+                        {% if selected_branch_id == branch[0] %}selected{% endif %}
+                    >
+                        {{ branch[1] }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        {% endif %}
+
+        <label for="month">
+            Mesiac
+        </label>
+
+        <select id="month" name="month">
+
+            {% for name in month_names %}
+
+                <option
+                    value="{{ loop.index }}"
+                    {% if report.month == loop.index %}selected{% endif %}
+                >
+                    {{ name }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <select id="year" name="year" aria-label="Rok">
+
+            {% for year in years %}
+
+                <option
+                    value="{{ year }}"
+                    {% if report.year == year %}selected{% endif %}
+                >
+                    {{ year }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <label style="font-weight: normal;">
+
+            <input
+                type="checkbox"
+                name="only_published"
+                value="1"
+                {% if report.only_published %}checked{% endif %}
+            >
+
+            len zverejnené smeny
+
+        </label>
+
+        <button type="submit" class="btn btn-small">
+            Zobraziť
+        </button>
+
+    </form>
+
+</div>
+
+
+<div class="card">
+
+    <p>
+        <strong>{{ month_names[report.month - 1] }} {{ report.year }}</strong>
+        - pracovných dní: <strong>{{ report.working_days }}</strong>
+        {% if report.only_published %}
+            (len zverejnené smeny)
+        {% else %}
+            (všetky smeny vrátane konceptov)
+        {% endif %}
+    </p>
+
+    {% if report.rows %}
+
+        <div style="overflow-x: auto;">
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Zamestnanec</th>
+                    {% if branches|length > 1 %}
+                        <th>Pobočka</th>
+                    {% endif %}
+                    <th>Smien</th>
+                    <th>Hodiny</th>
+                    <th>Nočné<br><small>22–06</small></th>
+                    <th>Sobota</th>
+                    <th>Nedeľa</th>
+                    <th>Sviatok</th>
+                    {% for name in absence_columns %}
+                        <th>{{ name }}<br><small>prac. dní</small></th>
+                    {% endfor %}
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for row in report.rows %}
+
+                    <tr>
+                        <td><strong>{{ row.name }}</strong></td>
+                        {% if branches|length > 1 %}
+                            <td>{{ row.branch_name }}</td>
+                        {% endif %}
+                        <td>{{ row.shifts }}</td>
+                        <td><strong>{{ h(row.hours) }}</strong></td>
+                        <td>{{ h(row.night) }}</td>
+                        <td>{{ h(row.saturday) }}</td>
+                        <td>{{ h(row.sunday) }}</td>
+                        <td>{{ h(row.holiday) }}</td>
+                        {% for name in absence_columns %}
+                            <td>{{ row.absence_days[name] }}</td>
+                        {% endfor %}
+                    </tr>
+
+                {% endfor %}
+
+                <tr style="font-weight: bold;">
+                    <td>Spolu</td>
+                    {% if branches|length > 1 %}
+                        <td></td>
+                    {% endif %}
+                    <td>{{ report.totals.shifts }}</td>
+                    <td>{{ h(report.totals.hours) }}</td>
+                    <td>{{ h(report.totals.night) }}</td>
+                    <td>{{ h(report.totals.saturday) }}</td>
+                    <td>{{ h(report.totals.sunday) }}</td>
+                    <td>{{ h(report.totals.holiday) }}</td>
+                    {% for name in absence_columns %}
+                        <td>{{ report.totals.absence_days[name] }}</td>
+                    {% endfor %}
+                </tr>
+
+            </tbody>
+
+        </table>
+
+        </div>
+
+        <p style="margin-top: 16px;">
+            <small>
+                Sobota/nedeľa a sviatok sa môžu prekrývať. Hodiny sa
+                určujú podľa skutočných kalendárnych dní, cez ktoré smena
+                prechádza. Export .xlsx obsahuje aj list so všetkými
+                smenami a poznámky k výpočtu. Prehľad je podklad, nie
+                mzdový výpočet.
+            </small>
+        </p>
+
+    {% else %}
+
+        <div class="empty">
+            <p>V tomto mesiaci nie sú žiadne smeny ani absencie.</p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

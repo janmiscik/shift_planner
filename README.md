@@ -112,6 +112,35 @@ routov, nová routa je teda predvolene len pre admina). Test
 `test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
 pri novej route nerozhodneš, kto ju smie používať.
 
+## Mesačný prehľad hodín (podklad pre mzdy)
+
+Menu **Prehľad hodín** (`/reports/hours`, manažér a admin, v rámci svojich
+pobočiek): vyberieš pobočku (alebo všetky), mesiac a rok a uvidíš pre
+každého zamestnanca:
+
+- počet smien a odpracované **hodiny**, z toho **nočné** (22:00-06:00),
+  **sobotné**, **nedeľné** a hodiny počas **štátneho sviatku**,
+- **pracovné dni absencií** (dovolenka, PN, OČR, náhradné voľno),
+- súčty za všetkých a počet pracovných dní v mesiaci.
+
+Voliteľne len zverejnené smeny (inak sa počítajú aj koncepty). Export do
+**.xlsx** (listy Prehľad, Smeny - podklad ku každej smene, Poznámky k
+výpočtu) a do **.csv** (UTF-8 s BOM, oddeľovač `;`, desatinná čiarka -
+otvorí sa v Exceli).
+
+Pravidlá výpočtu:
+- smena patrí do mesiaca podľa dátumu **začiatku** (nočná smena z
+  posledného dňa mesiaca sa počíta celá do tohto mesiaca),
+- hodiny sú dĺžka smeny **bez odpočítania prestávok**,
+- sobotné/nedeľné/sviatočné hodiny sa určujú podľa skutočných
+  kalendárnych dní, cez ktoré smena prechádza (nočná z piatka na sobotu
+  má sobotné hodiny po polnoci); sobota/nedeľa a sviatok sa môžu
+  prekrývať,
+- štátne sviatky SR sú zabudované (vrátane Veľkého piatku a
+  Veľkonočného pondelka), pracovný deň = pondelok až piatok mimo sviatkov.
+
+Prehľad je podklad - výsledné mzdové nároky určuje mzdová účtovníčka.
+
 ## Záznamy zmien (audit log)
 
 Appka zapisuje, **kto, kedy a čo zmenil**. Záznamy sú v menu **Záznamy

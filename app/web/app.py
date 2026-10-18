@@ -62,6 +62,12 @@ from app.services.audit_service import (
     to_local,
 )
 from app.services.login_throttle import LoginThrottle
+from app.services.report_service import (
+    ABSENCE_COLUMNS,
+    build_hours_csv,
+    build_hours_report,
+    build_hours_workbook,
+)
 from app.services.leave_request_service import (
     STATUS_LABELS,
     STATUS_PENDING,
@@ -279,6 +285,9 @@ _MANAGER_ALLOWED_ENDPOINTS = (
         "main.save_shift_template_page",
         "main.delete_shift_template_page",
         "main.apply_shift_template_page",
+        "main.hours_report_page",
+        "main.hours_report_export_xlsx",
+        "main.hours_report_export_csv",
         "main.audit_page",
         "main.audit_export_csv",
         "main.leave_requests_page",
@@ -1988,6 +1997,97 @@ def approve_leave_request_page(request_id):
 @bp.route("/leave-requests/<int:request_id>/reject", methods=["POST"])
 def reject_leave_request_page(request_id):
     return _decide_leave_request(request_id, "reject")
+
+
+# ---------------------------------------------------------------------
+# Mesačný prehľad hodín (podklad pre mzdy)
+# ---------------------------------------------------------------------
+
+_MONTH_NAMES = [
+    "január", "február", "marec", "apríl", "máj", "jún",
+    "júl", "august", "september", "október", "november", "december",
+]
+
+
+def _report_period():
+    today = date.today()
+
+    year = request.args.get("year", today.year, type=int)
+    month = request.args.get("month", today.month, type=int)
+
+    if not 2000 <= year <= 2100:
+        year = today.year
+
+    if not 1 <= month <= 12:
+        month = today.month
+
+    return year, month
+
+
+def _build_report_from_request():
+    year, month = _report_period()
+    only_published = request.args.get("only_published") == "1"
+
+    return build_hours_report(
+        year, month, _scope(), only_published=only_published
+    )
+
+
+@bp.route("/reports/hours")
+def hours_report_page():
+    report = _build_report_from_request()
+    selected_branch = _selected_branch_id()
+
+    query_values = {
+        "year": report.year,
+        "month": report.month,
+        "branch_id": selected_branch,
+        "only_published": "1" if report.only_published else None,
+    }
+
+    return render_template(
+        "hours_report.html",
+        report=report,
+        absence_columns=ABSENCE_COLUMNS,
+        month_names=_MONTH_NAMES,
+        years=range(date.today().year - 3, date.today().year + 2),
+        branches=_accessible_branches(),
+        selected_branch_id=selected_branch,
+        query_string=urlencode(
+            {key: value for key, value in query_values.items() if value}
+        ),
+    )
+
+
+@bp.route("/reports/hours/export.xlsx")
+def hours_report_export_xlsx():
+    report = _build_report_from_request()
+
+    return send_file(
+        build_hours_workbook(report),
+        as_attachment=True,
+        download_name=f"prehlad_hodin_{report.year}_{report.month:02d}.xlsx",
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument"
+            ".spreadsheetml.sheet"
+        ),
+    )
+
+
+@bp.route("/reports/hours/export.csv")
+def hours_report_export_csv():
+    report = _build_report_from_request()
+
+    return Response(
+        build_hours_csv(report),
+        mimetype="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=prehlad_hodin_"
+                f"{report.year}_{report.month:02d}.csv"
+            )
+        },
+    )
 
 
 # ---------------------------------------------------------------------
