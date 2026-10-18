@@ -483,6 +483,14 @@ def remove_duplicate_shifts():
         db.session.execute(sa_delete(Shift).where(Shift.id.in_(duplicate_ids)))
         db.session.commit()
 
+        from app.services.audit_service import record_event
+
+        record_event(
+            "shift.cleanup",
+            f"Odstránené duplicitné smeny: {len(duplicate_ids)}",
+            "shift",
+        )
+
     return duplicate_ids
 
 

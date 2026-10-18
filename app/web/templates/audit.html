@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Záznamy zmien - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Záznamy zmien</h1>
+
+        <p>
+            Kto, kedy a čo v appke zmenil. Časy sú v lokálnom čase.
+            Zmeny urobené mimo webu (správcovské príkazy) sú pod
+            používateľom „systém“.
+        </p>
+    </div>
+
+    <a
+        class="btn btn-secondary"
+        href="/audit/export.csv{% if query_string %}?{{ query_string }}{% endif %}"
+    >
+        ⬇ Export CSV
+    </a>
+
+</div>
+
+
+<div class="calendar-filter" style="margin-bottom: 16px;">
+
+    <form method="GET">
+
+        {% if branches and branches|length > 1 %}
+
+            <label for="branch_id">
+                Pobočka
+            </label>
+
+            <select id="branch_id" name="branch_id">
+
+                <option value="">Všetky pobočky</option>
+
+                {% for branch in branches %}
+
+                    <option
+                        value="{{ branch[0] }}"
+                        {% if selected_branch_id == branch[0] %}selected{% endif %}
+                    >
+                        {{ branch[1] }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        {% endif %}
+
+        <label for="entity">
+            Typ
+        </label>
+
+        <select id="entity" name="entity">
+
+            <option value="">Všetko</option>
+
+            {% for key, label in entity_labels.items() %}
+
+                <option
+                    value="{{ key }}"
+                    {% if values.entity == key %}selected{% endif %}
+                >
+                    {{ label }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <label for="user">
+            Používateľ
+        </label>
+
+        <select id="user" name="user">
+
+            <option value="">Všetci</option>
+
+            {% for name in usernames %}
+
+                <option
+                    value="{{ name }}"
+                    {% if values.user == name %}selected{% endif %}
+                >
+                    {{ name }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <label for="date_from">
+            Od
+        </label>
+
+        <input
+            type="date"
+            id="date_from"
+            name="date_from"
+            value="{{ values.date_from or '' }}"
+        >
+
+        <label for="date_to">
+            Do
+        </label>
+
+        <input
+            type="date"
+            id="date_to"
+            name="date_to"
+            value="{{ values.date_to or '' }}"
+        >
+
+        <button type="submit" class="btn btn-small">
+            Filtrovať
+        </button>
+
+        <a href="/audit" class="btn btn-secondary btn-small">
+            Zrušiť filter
+        </a>
+
+    </form>
+
+</div>
+
+
+<div class="card">
+
+    {% if entries %}
+
+        <p>
+            <small>Nájdených záznamov: {{ total }}</small>
+        </p>
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Čas</th>
+                    <th>Používateľ</th>
+                    <th>Typ</th>
+                    <th>Popis</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for entry in entries %}
+
+                    <tr>
+
+                        <td style="white-space: nowrap;">
+                            {{ entry.created_at | local_time }}
+                        </td>
+
+                        <td>
+                            {% if entry.username %}
+                                {{ entry.username }}
+                            {% else %}
+                                <em>systém</em>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ all_entity_labels.get(entry.entity_type, entry.entity_type) }}
+                        </td>
+
+                        <td>{{ entry.summary }}</td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+        {% if pages > 1 %}
+
+            <div class="actions" style="margin-top: 16px;">
+
+                {% if page > 1 %}
+                    <a
+                        class="btn btn-secondary btn-small"
+                        href="/audit?{% if query_string %}{{ query_string }}&{% endif %}page={{ page - 1 }}"
+                    >
+                        ← Novšie
+                    </a>
+                {% endif %}
+
+                <span>Strana {{ page }} z {{ pages }}</span>
+
+                {% if page < pages %}
+                    <a
+                        class="btn btn-secondary btn-small"
+                        href="/audit?{% if query_string %}{{ query_string }}&{% endif %}page={{ page + 1 }}"
+                    >
+                        Staršie →
+                    </a>
+                {% endif %}
+
+            </div>
+
+        {% endif %}
+
+    {% else %}
+
+        <div class="empty">
+            <p>Žiadne záznamy podľa zvoleného filtra.</p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

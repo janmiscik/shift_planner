@@ -13,6 +13,7 @@ pobočiek rieši ``app/services/access_service.py``.
 
 import os
 from datetime import date, timedelta
+from urllib.parse import urlencode
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -20,6 +21,7 @@ from dotenv import load_dotenv
 from flask import (
     Blueprint,
     Flask,
+    Response,
     current_app,
     flash,
     jsonify,
@@ -49,6 +51,16 @@ load_dotenv()
 
 from app.orm_models import ROLE_ADMIN, ROLE_EMPLOYEE, ROLE_MANAGER
 
+from app.services.audit_service import (
+    ADMIN_ONLY_ENTITIES,
+    ENTITY_LABELS,
+    entries_to_csv,
+    get_audit_entries,
+    get_audit_usernames,
+    init_audit,
+    record_event,
+    to_local,
+)
 from app.services.login_throttle import LoginThrottle
 from app.services.leave_request_service import (
     STATUS_LABELS,
@@ -267,6 +279,8 @@ _MANAGER_ALLOWED_ENDPOINTS = (
         "main.save_shift_template_page",
         "main.delete_shift_template_page",
         "main.apply_shift_template_page",
+        "main.audit_page",
+        "main.audit_export_csv",
         "main.leave_requests_page",
         "main.approve_leave_request_page",
         "main.reject_leave_request_page",
@@ -699,6 +713,12 @@ def admin_backup():
         except BackupError as error:
             return f"Zálohu sa nepodarilo vytvoriť: {error}", 500
 
+        record_event(
+            "backup.download",
+            f"Stiahnutá záloha databázy ({backup_path.name})",
+            "system",
+        )
+
         return send_file(
             backup_path,
             as_attachment=True,
@@ -712,6 +732,12 @@ def admin_backup():
 
     if backup_path is None:
         return "Databáza ešte neexistuje, niet čo zálohovať.", 404
+
+    record_event(
+        "backup.download",
+        f"Stiahnutá záloha databázy ({backup_path.name})",
+        "system",
+    )
 
     return send_file(
         backup_path,
@@ -1561,6 +1587,21 @@ def _plan_result_page(
 
     created_count = sum(1 for row in rows if row.status == "create")
 
+    if commit:
+        branch = get_branch(branch_id)
+
+        record_event(
+            "shift.bulk_create",
+            (
+                f"{title}: {description}, "
+                f"pobočka {branch[1] if branch else branch_id} - "
+                f"vytvorených {created_count}, "
+                f"preskočených {len(rows) - created_count}"
+            ),
+            "week",
+            branch_id=branch_id,
+        )
+
     return render_template(
         "week_plan.html",
         title=title,
@@ -1947,6 +1988,108 @@ def approve_leave_request_page(request_id):
 @bp.route("/leave-requests/<int:request_id>/reject", methods=["POST"])
 def reject_leave_request_page(request_id):
     return _decide_leave_request(request_id, "reject")
+
+
+# ---------------------------------------------------------------------
+# Záznamy zmien (audit log)
+# ---------------------------------------------------------------------
+
+_AUDIT_PAGE_SIZE = 50
+_AUDIT_EXPORT_LIMIT = 10000
+
+
+def _parse_iso_date(value):
+    try:
+        return date.fromisoformat((value or "").strip())
+    except ValueError:
+        return None
+
+
+def _audit_entity_labels():
+    """Typy záznamov, ktoré smie používateľ filtrovať (záznamy o
+    účtoch, pobočkách a systéme vidí len admin)."""
+
+    if current_user.role == ROLE_ADMIN:
+        return ENTITY_LABELS
+
+    return {
+        key: label
+        for key, label in ENTITY_LABELS.items()
+        if key not in ADMIN_ONLY_ENTITIES
+    }
+
+
+def _audit_filters():
+    entity = request.args.get("entity") or None
+
+    if entity not in _audit_entity_labels():
+        entity = None
+
+    return {
+        "entity_type": entity,
+        "username": request.args.get("user") or None,
+        "date_from": _parse_iso_date(request.args.get("date_from")),
+        "date_to": _parse_iso_date(request.args.get("date_to")),
+    }
+
+
+@bp.route("/audit")
+def audit_page():
+    scope = _scope()
+    filters = _audit_filters()
+
+    page = max(1, request.args.get("page", 1, type=int))
+
+    entries, total = get_audit_entries(
+        scope,
+        limit=_AUDIT_PAGE_SIZE,
+        offset=(page - 1) * _AUDIT_PAGE_SIZE,
+        **filters,
+    )
+
+    pages = max(1, -(-total // _AUDIT_PAGE_SIZE))
+
+    query_values = {
+        "entity": filters["entity_type"],
+        "user": filters["username"],
+        "date_from": request.args.get("date_from") if filters["date_from"] else None,
+        "date_to": request.args.get("date_to") if filters["date_to"] else None,
+        "branch_id": _selected_branch_id(),
+    }
+
+    return render_template(
+        "audit.html",
+        entries=entries,
+        total=total,
+        page=page,
+        pages=pages,
+        entity_labels=_audit_entity_labels(),
+        all_entity_labels=ENTITY_LABELS,
+        usernames=get_audit_usernames(accessible_branch_ids(current_user)),
+        branches=_accessible_branches(),
+        selected_branch_id=_selected_branch_id(),
+        values=query_values,
+        query_string=urlencode(
+            {key: value for key, value in query_values.items() if value}
+        ),
+    )
+
+
+@bp.route("/audit/export.csv")
+def audit_export_csv():
+    entries, _ = get_audit_entries(
+        _scope(), limit=_AUDIT_EXPORT_LIMIT, **_audit_filters()
+    )
+
+    return Response(
+        entries_to_csv(entries),
+        mimetype="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=zaznamy_zmien_{date.today().isoformat()}.csv"
+            )
+        },
+    )
 
 
 # ---------------------------------------------------------------------
@@ -2625,6 +2768,9 @@ def create_app(database_path=None):
     login_manager.login_message_category = "error"
 
     app.extensions["login_throttle"] = LoginThrottle.from_env()
+
+    init_audit()
+    app.jinja_env.filters["local_time"] = to_local
 
     app.register_blueprint(bp)
 

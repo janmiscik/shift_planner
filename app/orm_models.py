@@ -358,6 +358,40 @@ class LeaveRequest(db.Model):
     employee = db.relationship("Employee")
 
 
+class AuditLog(db.Model):
+    """Záznam o zmene (kto, kedy, čo) - viď ``audit_service``.
+
+    ``username`` sa ukladá aj samostatne, aby záznam ostal čitateľný aj
+    po zmazaní účtu. ``branch_id`` určuje, komu je záznam viditeľný
+    (manažér vidí záznamy svojich pobočiek, admin všetky).
+    """
+
+    __tablename__ = "audit_log"
+    __table_args__ = (
+        db.Index("ix_audit_log_created_at", "created_at"),
+        db.Index("ix_audit_log_branch_id", "branch_id"),
+        db.Index("ix_audit_log_entity_type", "entity_type"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.String, nullable=False)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    username = db.Column(db.String, nullable=True)
+    action = db.Column(db.String, nullable=False)
+    entity_type = db.Column(db.String, nullable=False)
+    entity_id = db.Column(db.Integer, nullable=True)
+    branch_id = db.Column(
+        db.Integer,
+        db.ForeignKey("branches.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    summary = db.Column(db.Text, nullable=False)
+
+
 class User(UserMixin, db.Model):
     """Prihlasovací účet.
 

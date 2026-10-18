@@ -16,7 +16,8 @@ from datetime import timedelta
 from sqlalchemy import select, update
 
 from app.extensions import db
-from app.orm_models import Employee, Shift
+from app.orm_models import Branch, Employee, Shift
+from app.services.audit_service import record_event
 
 
 def _week_filter(monday, branch_id):
@@ -82,6 +83,22 @@ def _set_week_published(monday, branch_id, published):
             .values(published=1 if published else 0)
         )
         db.session.commit()
+
+        # Hromadný SQL UPDATE ORM udalosti nevidia - zapíšeme výslovne.
+        branch = db.session.get(Branch, branch_id)
+        sunday = monday + timedelta(days=6)
+
+        record_event(
+            "shift.publish" if published else "shift.unpublish",
+            (
+                f"{'Zverejnený' if published else 'Stiahnutý zo zverejnenia'}"
+                f" rozpis {monday.isoformat()} – {sunday.isoformat()}, "
+                f"pobočka {branch.name if branch else branch_id}: "
+                f"{len(shift_ids)} smien"
+            ),
+            "week",
+            branch_id=branch_id,
+        )
 
     return len(shift_ids)
 

@@ -8,6 +8,8 @@ Použitie:
                                             # SQLite do PostgreSQL
                                             # (DATABASE_URL), pozri
                                             # DEPLOYMENT.md
+    python manage.py audit-prune <dni>     # zmaže záznamy zmien (audit log)
+                                            # staršie ako <dni> (min. 30)
     python manage.py serve                 # spustí produkčný server
                                             # (waitress); vyžaduje vlastný
                                             # SECRET_KEY, pozri DEPLOYMENT.md
@@ -82,6 +84,9 @@ def main():
 
     elif command == "serve":
         _run_serve()
+
+    elif command == "audit-prune":
+        _run_audit_prune(sys.argv[2] if len(sys.argv) > 2 else None)
 
     elif command == "import-sqlite":
         _run_import_sqlite(sys.argv[2] if len(sys.argv) > 2 else None)
@@ -310,6 +315,32 @@ def _run_import_sqlite(sqlite_path=None):
 
     print()
     print("Hotovo. Pôvodný SQLite súbor ostal nezmenený (ponechaj si ho ako zálohu).")
+
+
+def _run_audit_prune(days_text):
+    """Zmaže záznamy zmien (audit log) staršie ako zadaný počet dní."""
+
+    from app.extensions import db  # noqa: F401
+    from app.services.audit_service import prune_older_than
+    from app.web.app import create_app
+
+    try:
+        days = int(days_text)
+    except (TypeError, ValueError):
+        print("Použitie: python manage.py audit-prune <počet dní> (min. 30)")
+        sys.exit(1)
+
+    if days < 30:
+        print("Z bezpečnostných dôvodov sa dajú zmazať len záznamy staršie "
+              "ako 30 dní.")
+        sys.exit(1)
+
+    app = create_app()
+
+    with app.app_context():
+        removed = prune_older_than(days)
+
+    print(f"Zmazaných záznamov starších ako {days} dní: {removed}")
 
 
 def _run_serve():

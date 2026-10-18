@@ -30,6 +30,7 @@ from app.services.shift_service import (
     get_shifts_in_range,
     validate_shift,
 )
+from app.services.audit_service import suppressed
 from app.services.text_utils import same_name
 
 WEEKDAY_NAMES = [
@@ -163,10 +164,18 @@ def _identical_shift_exists(entry, shift_date):
 def run_plan(entries, target_monday, commit):
     """Vytvorí smeny z ``entries`` v týždni ``target_monday``.
 
+    Riadkové záznamy do audit logu sa potláčajú - hromadnú akciu zapíše
+    ako jeden súhrnný záznam volajúci (``record_event``).
+
     Vráti zoznam ``PlanRow`` (každá smena: ``create`` alebo ``skip`` s
     dôvodmi). ``commit=False`` je len náhľad - nič sa nezapíše.
     """
 
+    with suppressed():
+        return _run_plan(entries, target_monday, commit)
+
+
+def _run_plan(entries, target_monday, commit):
     rows = []
     published = 1 if auto_publish_enabled() else 0
 

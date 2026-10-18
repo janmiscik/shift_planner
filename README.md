@@ -112,6 +112,32 @@ routov, nová routa je teda predvolene len pre admina). Test
 `test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
 pri novej route nerozhodneš, kto ju smie používať.
 
+## Záznamy zmien (audit log)
+
+Appka zapisuje, **kto, kedy a čo zmenil**. Záznamy sú v menu **Záznamy
+zmien** (`/audit`) pre manažéra a admina, s filtrom podľa pobočky, typu,
+používateľa a dátumu a s exportom do CSV (otvorí sa v Exceli).
+
+- Zachytáva sa **automaticky** každá zmena smien (pridanie, úprava časov,
+  presun v kalendári, zmazanie), absencií, žiadostí o voľno (podanie,
+  schválenie, zamietnutie), zamestnancov, oddelení, priradení k
+  oddeleniam, šablón, pobočiek a účtov (vrátane zmeny role, pobočiek a
+  hesla). Pri úpravách je vidno pôvodnú aj novú hodnotu (napr. `začiatok:
+  06:00 → 07:00`). **Heslá ani ich hashe sa nikdy nezapisujú.**
+- Hromadné akcie sú jeden súhrnný záznam: zverejnenie/stiahnutie týždňa,
+  kopírovanie týždňa a použitie šablóny (nie záznam za každú smenu).
+  Zálohu stiahnutú adminom appka tiež zapíše.
+- Manažér vidí záznamy len zo svojich pobočiek; záznamy o účtoch a
+  pobočkách vidí iba admin. Zamestnanec záznamy nevidí.
+- Zmeny urobené mimo webu (`manage.py`) sú pod používateľom "systém".
+  Meno používateľa ostane v starých záznamoch aj po zmazaní jeho účtu.
+- Časy sa zobrazujú v lokálnom čase (`APP_TIMEZONE`, predvolene
+  `Europe/Bratislava`).
+- Záznamy sa nemažú samé. Staré vieš zmazať príkazom
+  `python manage.py audit-prune <dni>` (len záznamy staršie ako 30 dní).
+- Audit nikdy nezhodí samotnú operáciu: ak sa záznam nepodarí vytvoriť,
+  chyba sa len zapíše do logu servera.
+
 ## Žiadosti o voľno
 
 Zamestnanec (aj manažér, ktorý je zároveň zamestnancom) podáva žiadosť v
