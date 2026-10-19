@@ -1,0 +1,75 @@
+name: Testy
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Nový push do tej istej vetvy zruší rozbehnutý starší beh.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sqlite:
+    name: Testy (SQLite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Inštalácia závislostí
+        run: pip install -r requirements.txt
+
+      - name: Testy
+        run: python -m pytest -q
+
+  postgres:
+    name: Testy (PostgreSQL)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: planner
+          POSTGRES_PASSWORD: planner
+          POSTGRES_DB: shift_planner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U planner -d shift_planner_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Pozor: pred každým testom sa táto databáza vymaže - je určená
+      # výlučne na testy (pozri tests/conftest.py).
+      TEST_DATABASE_URL: postgresql://planner:planner@localhost:5432/shift_planner_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Klientske nástroje PostgreSQL (pg_dump pre testy záloh)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Inštalácia závislostí
+        run: pip install -r requirements.txt
+
+      - name: Testy proti PostgreSQL
+        run: python -m pytest -q

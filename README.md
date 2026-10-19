@@ -236,6 +236,36 @@ server, HTTPS, zálohy, presun dát zo SQLite) pozri
 [`DEPLOYMENT.md`](DEPLOYMENT.md). Produkčný server sa spúšťa
 `python manage.py serve`.
 
+## Štruktúra kódu
+
+```
+app/
+  web/
+    app.py          zostavenie appky (create_app)
+    core.py         blueprint "main" a CSRF
+    permissions.py  oprávnenia podľa rolí, kontrola prihlásenia
+    helpers.py      rozsah pobočiek a spoločné pomocné funkcie
+    forms.py        formuláre
+    routes/         routy podľa oblastí (auth, employees, shifts, planning,
+                    leave_requests, reports, audit, absences, admin, ...)
+    templates/      šablóny
+  services/         biznis logika (pravidlá smien, exporty, audit, ...)
+  orm_models.py     databázové modely
+migrations/         Alembic migrácie
+tests/              testy
+```
+
+Všetky routy sú v jednom blueprinte `main`, takže názov endpointu je
+`main.<názov_funkcie>`. Novú routu pridaj do príslušného modulu v
+`app/web/routes/` a **rozhodni, kto ju smie používať** v
+`app/web/permissions.py` (predvolene je prístupná len adminovi).
+
+## Automatické testy (GitHub Actions)
+
+Pri každom pushi a pull requeste sa na GitHube spustia všetky testy
+(`.github/workflows/tests.yml`): raz na SQLite a raz na PostgreSQL.
+Výsledok vidno pri commite a na záložke Actions.
+
 ## Spustenie
 
 ```powershell
