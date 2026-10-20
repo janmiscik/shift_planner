@@ -39,6 +39,7 @@ from app.orm_models import (
     EmployeeDepartment,
     LeaveRequest,
     Shift,
+    ShiftSwap,
     ShiftTemplate,
     User,
 )
@@ -50,6 +51,7 @@ ENTITY_LABELS = {
     "week": "Týždne (hromadné akcie)",
     "absence": "Absencie",
     "leave_request": "Žiadosti o voľno",
+    "swap": "Výmeny smien",
     "employee": "Zamestnanci",
     "assignment": "Priradenia k oddeleniam",
     "department": "Oddelenia",
@@ -282,6 +284,39 @@ def _describe_leave_request(session, obj, op):
     return branch_id, summary
 
 
+def _describe_swap(session, obj, op):
+    from app.services.shift_swap_service import STATUS_LABELS
+
+    branch_id = _employee_branch_id(session, obj.proposer_employee_id)
+    text = (
+        f"{_employee_name(session, obj.proposer_employee_id)} → "
+        f"{_employee_name(session, obj.colleague_employee_id)}: "
+        f"{obj.offered_text}"
+    )
+
+    if obj.counter_text:
+        text += f" ⇄ {obj.counter_text}"
+
+    if op == "create":
+        return branch_id, f"Navrhnutá výmena smien ({text})"
+
+    if op == "delete":
+        return branch_id, f"Zmazaná žiadosť o výmenu smien ({text})"
+
+    if not inspect(obj).attrs.status.history.has_changes():
+        return None
+
+    summary = (
+        f"Výmena smien ({text}): "
+        f"{STATUS_LABELS.get(obj.status, obj.status).lower()}"
+    )
+
+    if obj.decision_note:
+        summary += f" - {obj.decision_note}"
+
+    return branch_id, summary
+
+
 def _describe_employee(session, obj, op):
     text = f"{obj.first_name} {obj.last_name} ({obj.position})"
 
@@ -419,6 +454,7 @@ _TRACKED = {
     Shift: ("shift", _describe_shift),
     Absence: ("absence", _describe_absence),
     LeaveRequest: ("leave_request", _describe_leave_request),
+    ShiftSwap: ("swap", _describe_swap),
     Employee: ("employee", _describe_employee),
     Department: ("department", _describe_department),
     Branch: ("branch", _describe_branch),

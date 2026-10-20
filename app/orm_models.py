@@ -392,6 +392,66 @@ class AuditLog(db.Model):
     summary = db.Column(db.Text, nullable=False)
 
 
+class ShiftSwap(db.Model):
+    """Žiadosť o výmenu (alebo odovzdanie) smeny medzi dvoma kolegami.
+
+    Priebeh: ``pending_colleague`` (čaká na kolegu) -> ``pending_manager``
+    (kolega súhlasil, čaká na manažéra) -> ``approved`` (smeny sa
+    vymenili). Inak ``declined`` (kolega odmietol), ``rejected``
+    (manažér zamietol) alebo ``cancelled`` (zrušená).
+
+    ``offered_shift_id`` je smena navrhovateľa; ``counter_shift_id`` je
+    smena kolegu, ktorú dá na oplátku (len ak ``wants_swap``). Text smien
+    sa uchováva aj samostatne, aby história ostala čitateľná aj po
+    zmazaní smeny.
+    """
+
+    __tablename__ = "shift_swaps"
+
+    id = db.Column(db.Integer, primary_key=True)
+    proposer_employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    colleague_employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    offered_shift_id = db.Column(
+        db.Integer,
+        db.ForeignKey("shifts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    counter_shift_id = db.Column(
+        db.Integer,
+        db.ForeignKey("shifts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    wants_swap = db.Column(
+        db.Integer, nullable=False, default=0, server_default="0"
+    )
+    offered_text = db.Column(db.String, nullable=False)
+    counter_text = db.Column(db.String, nullable=True)
+    note = db.Column(db.String, nullable=True)
+    status = db.Column(
+        db.String,
+        nullable=False,
+        default="pending_colleague",
+        server_default="pending_colleague",
+    )
+    created_at = db.Column(db.String, nullable=True)
+    colleague_responded_at = db.Column(db.String, nullable=True)
+    decided_at = db.Column(db.String, nullable=True)
+    decided_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    decision_note = db.Column(db.String, nullable=True)
+
+
 class User(UserMixin, db.Model):
     """Prihlasovací účet.
 

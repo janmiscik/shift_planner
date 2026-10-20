@@ -19,4 +19,5 @@ from app.web.routes import (  # noqa: F401
     planning,
     reports,
     shifts,
+    swaps,
 )

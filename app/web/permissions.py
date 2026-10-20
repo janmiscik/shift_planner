@@ -20,6 +20,10 @@ from app.orm_models import ROLE_ADMIN, ROLE_EMPLOYEE, ROLE_MANAGER
 from app.services.leave_request_service import (
     pending_count as pending_leave_request_count,
 )
+from app.services.shift_swap_service import (
+    incoming_count as incoming_swap_count,
+    pending_manager_count as pending_swap_manager_count,
+)
 from app.services.access_service import (
     accessible_branch_ids,
 )
@@ -58,6 +62,9 @@ _OWN_SCHEDULE_ENDPOINTS = {
     "main.my_schedule_export_pdf",
     "main.my_requests_page",
     "main.cancel_my_request_page",
+    "main.my_swaps_page",
+    "main.respond_swap_page",
+    "main.cancel_swap_page",
 }
 
 # Zamestnanec: vlastný rozpis a jeho export.
@@ -102,6 +109,9 @@ _MANAGER_ALLOWED_ENDPOINTS = (
         "main.hours_report_export_csv",
         "main.audit_page",
         "main.audit_export_csv",
+        "main.swap_requests_page",
+        "main.approve_swap_page",
+        "main.reject_swap_page",
         "main.leave_requests_page",
         "main.approve_leave_request_page",
         "main.reject_leave_request_page",
@@ -162,17 +172,23 @@ def _require_login():
 @bp.app_context_processor
 def _inject_template_flags():
     pending_requests = 0
+    pending_swap_approvals = 0
+    incoming_swaps = 0
 
-    if current_user.is_authenticated and current_user.role in (
-        ROLE_ADMIN,
-        ROLE_MANAGER,
-    ):
-        pending_requests = pending_leave_request_count(
-            accessible_branch_ids(current_user)
-        )
+    if current_user.is_authenticated:
+        if current_user.role in (ROLE_ADMIN, ROLE_MANAGER):
+            scope = accessible_branch_ids(current_user)
+
+            pending_requests = pending_leave_request_count(scope)
+            pending_swap_approvals = pending_swap_manager_count(scope)
+
+        if current_user.employee_id is not None:
+            incoming_swaps = incoming_swap_count(current_user.employee_id)
 
     return {
         "employees_can_view_calendar": _employees_can_view_branch_calendar(),
         "auto_publish_shifts": auto_publish_enabled(),
         "pending_leave_requests": pending_requests,
+        "pending_swap_approvals": pending_swap_approvals,
+        "incoming_swaps": incoming_swaps,
     }

@@ -112,6 +112,36 @@ routov, nová routa je teda predvolene len pre admina). Test
 `test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
 pri novej route nerozhodneš, kto ju smie používať.
 
+## Výmena smien
+
+Zamestnanec (aj manažér, ktorý je zároveň zamestnancom) v menu **Výmeny
+smien** (`/my-swaps`) navrhne kolegovi z tej istej pobočky, aby prevzal
+jeho smenu:
+
+- **odovzdanie** - kolega smenu len prevezme, alebo
+- **výmena** - kolega dá na oplátku jednu zo **svojich** smien (vyberie
+  si ju sám, lebo cudzie smeny zamestnanci nevidia).
+
+Priebeh: navrhne zamestnanec -> **kolega prijme alebo odmietne** ->
+**manažér (alebo admin) schváli alebo zamietne** (zamietnutie vyžaduje
+dôvod). Až po schválení sa smeny prehodia; dovtedy sa nič nemení. Každý z
+dvoch zamestnancov môže otvorenú žiadosť zrušiť.
+
+- Vymeniť sa dajú len **budúce zverejnené** smeny (koncepty zamestnanec
+  nevidí) a smena môže byť naraz len v jednej otvorenej žiadosti.
+  Kolega musí byť v tej istej pobočke, aktívny a mať prihlasovací účet.
+- Pri schválení sa **nové pridelenie overí rovnakými pravidlami ako pri
+  ručnej úprave smeny**: prekrytie, odpočinok, týždenné fondy, absencia a
+  priradenie k oddeleniu - pre oboch zamestnancov. Ak čokoľvek nesedí,
+  nezmení sa nič (ani polovica výmeny) a manažér uvidí presný dôvod.
+  Ak sa smena od odpovede kolegu zmenila (zmazaná, stiahnutá do konceptu,
+  zamestnanec deaktivovaný), schválenie sa zablokuje.
+- Manažér vidí žiadosti zo svojich pobočiek v menu **Výmeny smien**
+  (`/swap-requests`) s počtom čakajúcich. Výmenu, v ktorej je sám
+  zainteresovaný, vybaví iný manažér alebo admin. Kolega vidí počet
+  žiadostí čakajúcich na jeho odpoveď.
+- Všetko sa zapisuje do záznamov zmien (aj samotné prehodenie smien).
+
 ## Mesačný prehľad hodín (podklad pre mzdy)
 
 Menu **Prehľad hodín** (`/reports/hours`, manažér a admin, v rámci svojich

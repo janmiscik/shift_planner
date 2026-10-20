@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Výmeny smien - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Výmeny smien</h1>
+
+        <p>
+            Navrhni kolegovi, aby prevzal tvoju smenu, alebo sa s ním
+            vymeň. Kolega musí súhlasiť a výmenu potom schváli manažér -
+            až vtedy sa smeny zmenia. Vymeniť sa dajú len budúce
+            zverejnené smeny.
+        </p>
+    </div>
+
+    <a class="btn btn-secondary" href="/my-schedule">
+        📅 Môj rozpis
+    </a>
+
+</div>
+
+
+{% if incoming %}
+
+<div class="card" style="margin-bottom: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Čaká na tvoju odpoveď
+    </h3>
+
+    {% for swap in incoming %}
+
+        <form
+            method="POST"
+            action="/my-swaps/{{ swap[0] }}/respond"
+            style="border-top: 1px solid var(--border, #e5e7eb); padding: 12px 0;"
+        >
+
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <p>
+                <strong>{{ swap[2] }} {{ swap[3] }}</strong> ti ponúka
+                smenu <strong>{{ swap[9] }}</strong>.
+                {% if swap[11] %}
+                    Chce za ňu <strong>inú tvoju smenu</strong>.
+                {% else %}
+                    Na oplátku nič nežiada.
+                {% endif %}
+                {% if swap[12] %}
+                    <br><small>Poznámka: {{ swap[12] }}</small>
+                {% endif %}
+            </p>
+
+            {% if swap[11] %}
+
+                <div class="form-group">
+
+                    <label for="counter_{{ swap[0] }}">
+                        Tvoja smena na oplátku
+                    </label>
+
+                    <select id="counter_{{ swap[0] }}" name="counter_shift_id">
+
+                        <option value="">-- vyber --</option>
+
+                        {% for shift in my_shifts %}
+                            <option value="{{ shift.id }}">
+                                {{ shift.shift_date }}
+                                {{ shift.start_time }}–{{ shift.end_time }}
+                                ({{ shift.shift_type }})
+                            </option>
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+            {% endif %}
+
+            <div class="actions">
+
+                <button
+                    type="submit"
+                    name="action"
+                    value="accept"
+                    class="btn btn-success btn-small"
+                >
+                    ✅ Prijať
+                </button>
+
+                <button
+                    type="submit"
+                    name="action"
+                    value="decline"
+                    class="btn btn-delete btn-small"
+                >
+                    ✖ Odmietnuť
+                </button>
+
+            </div>
+
+        </form>
+
+    {% endfor %}
+
+</div>
+
+{% endif %}
+
+
+<div class="card">
+
+    <h3 style="margin-top: 0;">
+        Navrhnúť výmenu
+    </h3>
+
+    {% if my_shifts and colleagues %}
+
+    <form method="post">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
+        <div class="form-group">
+
+            <label for="shift_id">
+                Moja smena
+            </label>
+
+            <select id="shift_id" name="shift_id" required>
+
+                {% for shift in my_shifts %}
+                    <option value="{{ shift.id }}">
+                        {{ shift.shift_date }}
+                        {{ shift.start_time }}–{{ shift.end_time }}
+                        ({{ shift.shift_type }})
+                    </option>
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="colleague_id">
+                Kolega
+            </label>
+
+            <select id="colleague_id" name="colleague_id" required>
+
+                {% for colleague_id, name in colleagues %}
+                    <option value="{{ colleague_id }}">{{ name }}</option>
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label style="font-weight: normal;">
+
+                <input type="checkbox" name="wants_swap" value="1">
+
+                Chcem za ňu inú smenu kolegu (kolega si vyberie, ktorú
+                svoju mi dá)
+
+            </label>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="note">
+                Poznámka (nepovinné)
+            </label>
+
+            <input type="text" id="note" name="note" maxlength="255">
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
+                Odoslať kolegovi
+            </button>
+
+        </div>
+
+    </form>
+
+    {% elif not my_shifts %}
+
+        <p>
+            Nemáš žiadnu budúcu zverejnenú smenu, ktorú by si mohol
+            vymeniť (alebo je už v otvorenej žiadosti).
+        </p>
+
+    {% else %}
+
+        <p>
+            V tvojej pobočke nie je kolega s prihlasovacím účtom, ktorému
+            by si mohol výmenu navrhnúť.
+        </p>
+
+    {% endif %}
+
+</div>
+
+
+<div class="card" style="margin-top: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Moje žiadosti
+    </h3>
+
+    {% if swaps %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Podaná</th>
+                    <th>Kto komu</th>
+                    <th>Ponúkaná smena</th>
+                    <th>Na oplátku</th>
+                    <th>Stav</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for swap in swaps %}
+
+                    <tr>
+
+                        <td>{{ swap[14] }}</td>
+
+                        <td>
+                            {% if swap[1] == employee_id %}
+                                ty → {{ swap[5] }} {{ swap[6] }}
+                            {% else %}
+                                {{ swap[2] }} {{ swap[3] }} → ty
+                            {% endif %}
+                        </td>
+
+                        <td>{{ swap[9] }}</td>
+
+                        <td>
+                            {% if swap[11] %}
+                                {{ swap[10] or "ešte nevybraná" }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                        <td>
+
+                            {% if swap[13] == "approved" %}
+                                <span class="status-active">{{ status_labels[swap[13]] }}</span>
+                            {% else %}
+                                <span class="status-inactive">{{ status_labels[swap[13]] }}</span>
+                            {% endif %}
+
+                            {% if swap[18] %}
+                                <br><small>{{ swap[18] }}</small>
+                            {% endif %}
+
+                        </td>
+
+                        <td class="actions">
+
+                            {% if swap[13] in open_statuses %}
+
+                                <form
+                                    method="POST"
+                                    action="/my-swaps/{{ swap[0] }}/cancel"
+                                    onsubmit="return confirm('Naozaj chceš zrušiť túto žiadosť?');"
+                                >
+
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                    <button type="submit" class="btn btn-delete btn-small">
+                                        Zrušiť
+                                    </button>
+
+                                </form>
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+            <p>Zatiaľ žiadne žiadosti o výmenu.</p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

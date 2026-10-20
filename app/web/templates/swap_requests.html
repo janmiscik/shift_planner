@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Výmeny smien - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Výmeny smien</h1>
+
+        <p>
+            Žiadosti zamestnancov z tvojich pobočiek, ktoré kolega už
+            prijal. Pri schválení sa smeny prehodia, ale len ak nové
+            pridelenie spĺňa všetky pravidlá (prekrytie, odpočinok,
+            týždenné fondy, absencia, oddelenie) - inak sa nič nezmení a
+            uvidíš dôvod.
+        </p>
+    </div>
+
+</div>
+
+{% include "_branch_filter.html" %}
+
+<div class="calendar-filter" style="margin-bottom: 16px;">
+
+    <form method="GET">
+
+        {% if selected_branch_id %}
+            <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+        {% endif %}
+
+        <label for="status">
+            Stav
+        </label>
+
+        <select id="status" name="status" onchange="this.form.submit()">
+
+            {% for key, label in status_labels.items() %}
+
+                <option value="{{ key }}" {% if status == key %}selected{% endif %}>
+                    {{ label }}
+                </option>
+
+            {% endfor %}
+
+            <option value="all" {% if status == "all" %}selected{% endif %}>
+                Všetky
+            </option>
+
+        </select>
+
+    </form>
+
+</div>
+
+
+<div class="card">
+
+    {% if swaps %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Kto komu</th>
+                    {% if branches|length > 1 %}
+                        <th>Pobočka</th>
+                    {% endif %}
+                    <th>Ponúkaná smena</th>
+                    <th>Na oplátku</th>
+                    <th>Stav</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for swap in swaps %}
+
+                    <tr>
+
+                        <td>
+                            <strong>{{ swap[2] }} {{ swap[3] }}</strong>
+                            → <strong>{{ swap[5] }} {{ swap[6] }}</strong>
+                            <br>
+                            <small>podaná {{ swap[14] }}</small>
+                            {% if swap[12] %}
+                                <br><small>{{ swap[12] }}</small>
+                            {% endif %}
+                        </td>
+
+                        {% if branches|length > 1 %}
+                            <td>{{ swap[8] }}</td>
+                        {% endif %}
+
+                        <td>{{ swap[9] }}</td>
+
+                        <td>
+                            {% if swap[11] %}
+                                {{ swap[10] or "zatiaľ nevybraná" }}
+                            {% else %}
+                                bez protihodnoty
+                            {% endif %}
+                        </td>
+
+                        <td>
+
+                            {% if swap[13] == "approved" %}
+                                <span class="status-active">{{ status_labels[swap[13]] }}</span>
+                            {% else %}
+                                <span class="status-inactive">{{ status_labels[swap[13]] }}</span>
+                            {% endif %}
+
+                            {% if swap[17] %}
+                                <br><small>vybavil: {{ swap[17] }}</small>
+                            {% endif %}
+
+                            {% if swap[18] %}
+                                <br><small>{{ swap[18] }}</small>
+                            {% endif %}
+
+                        </td>
+
+                        <td class="actions">
+
+                            {% if swap[13] == "pending_manager" %}
+
+                                {% if own_employee_id and own_employee_id in (swap[1], swap[4]) %}
+
+                                    <small>Výmenu, v ktorej si zainteresovaný, vybaví iný manažér alebo admin.</small>
+
+                                {% else %}
+
+                                    <form method="POST">
+
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                        <input
+                                            type="text"
+                                            name="decision_note"
+                                            maxlength="255"
+                                            placeholder="Poznámka / dôvod zamietnutia"
+                                            style="margin-bottom: 6px;"
+                                        >
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-success btn-small"
+                                            formaction="/swap-requests/{{ swap[0] }}/approve"
+                                        >
+                                            ✅ Schváliť
+                                        </button>
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-delete btn-small"
+                                            formaction="/swap-requests/{{ swap[0] }}/reject"
+                                        >
+                                            ✖ Zamietnuť
+                                        </button>
+
+                                    </form>
+
+                                {% endif %}
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+            <p>
+                {% if status == "pending_manager" %}
+                    Žiadne výmeny nečakajú na schválenie.
+                {% else %}
+                    V tomto filtri nie sú žiadne výmeny.
+                {% endif %}
+            </p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

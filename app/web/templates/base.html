@@ -69,6 +69,11 @@
                     <span>Žiadosti o voľno</span>
                 </a>
 
+                <a href="/my-swaps">
+                    <span class="nav-icon">🔁</span>
+                    <span>Výmeny smien{% if incoming_swaps %} ({{ incoming_swaps }}){% endif %}</span>
+                </a>
+
                 {% if employees_can_view_calendar %}
 
                     <a href="/calendar">
@@ -95,6 +100,11 @@
                     <a href="/my-requests">
                         <span class="nav-icon">🌴</span>
                         <span>Moje žiadosti o voľno</span>
+                    </a>
+
+                    <a href="/my-swaps">
+                        <span class="nav-icon">🔁</span>
+                        <span>Moje výmeny smien{% if incoming_swaps %} ({{ incoming_swaps }}){% endif %}</span>
                     </a>
 
                 {% endif %}
@@ -132,6 +142,11 @@
                 <a href="/audit">
                     <span class="nav-icon">🕘</span>
                     <span>Záznamy zmien</span>
+                </a>
+
+                <a href="/swap-requests">
+                    <span class="nav-icon">🔁</span>
+                    <span>Výmeny smien{% if pending_swap_approvals %} ({{ pending_swap_approvals }}){% endif %}</span>
                 </a>
 
                 <a href="/leave-requests">
