@@ -100,6 +100,13 @@ def _set_week_published(monday, branch_id, published):
             branch_id=branch_id,
         )
 
+        if published:
+            from app.services.notification_service import (
+                notify_schedule_published,
+            )
+
+            notify_schedule_published(shift_ids, monday, branch_id)
+
     return len(shift_ids)
 
 

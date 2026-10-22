@@ -55,6 +55,28 @@
 
         <div class="form-group">
 
+            <label for="email">
+                E-mail (pre upozornenia, nepovinné)
+            </label>
+
+            <input
+                type="email"
+                id="email"
+                name="email"
+                maxlength="254"
+                value="{{ form.email.data or '' }}"
+                placeholder="meno@firma.sk"
+            >
+
+            {% for error in form.email.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
             <label for="password">
                 {% if user %}Nové heslo{% else %}Heslo{% endif %}
             </label>

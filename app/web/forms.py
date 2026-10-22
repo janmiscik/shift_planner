@@ -5,6 +5,7 @@ from wtforms import (
     DateField,
     FloatField,
     IntegerField,
+    BooleanField,
     PasswordField,
     SelectField,
     SelectMultipleField,
@@ -234,6 +235,20 @@ class CredentialsForm(FlaskForm):
         "Heslo",
         validators=[Optional(), Length(min=6, message="Aspoň 6 znakov.")],
     )
+    email = StringField(
+        "E-mail (pre upozornenia)",
+        validators=[Optional(), Length(max=254)],
+    )
+
+
+class AccountSettingsForm(FlaskForm):
+    """Vlastné nastavenia účtu: e-mail a e-mailové upozornenia."""
+
+    email = StringField(
+        "E-mail",
+        validators=[Optional(), Length(max=254)],
+    )
+    notify_email = BooleanField("Posielať mi e-mailové upozornenia")
 
 
 USER_ROLE_CHOICES = [
@@ -259,6 +274,10 @@ class StaffUserForm(FlaskForm):
     password = PasswordField(
         "Heslo",
         validators=[Optional(), Length(min=6, message="Aspoň 6 znakov.")],
+    )
+    email = StringField(
+        "E-mail (pre upozornenia)",
+        validators=[Optional(), Length(max=254)],
     )
     role = SelectField(
         "Rola",

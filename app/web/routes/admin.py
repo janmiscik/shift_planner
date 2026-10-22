@@ -19,7 +19,9 @@ from app.services.branch_service import (
     set_branch_active,
     update_branch,
 )
+from app.services.email_service import normalize_email
 from app.services.auth_service import (
+    set_user_email,
     count_admins,
     create_admin,
     create_manager,
@@ -144,19 +146,25 @@ def add_user_page():
     if form.validate_on_submit():
         username = form.username.data.strip()
         role = form.role.data
+        email, email_error = normalize_email(form.email.data)
 
         if username_exists(username):
             flash("Toto používateľské meno už niekto používa.", "error")
+        elif email_error:
+            flash(email_error, "error")
         elif role == ROLE_MANAGER and not form.branch_ids.data:
             flash(
                 "Manažér musí mať priradenú aspoň jednu pobočku.", "error"
             )
         else:
             if role == ROLE_ADMIN:
-                create_admin(username, form.password.data)
+                create_admin(username, form.password.data, email=email)
             else:
                 create_manager(
-                    username, form.password.data, form.branch_ids.data
+                    username,
+                    form.password.data,
+                    form.branch_ids.data,
+                    email=email,
                 )
 
             flash("Účet bol vytvorený.", "success")
@@ -183,20 +191,27 @@ def edit_user_page(user_id):
 
     if request.method == "GET":
         form.username.data = user.username
+        form.email.data = user.email or ""
         form.role.data = user.role
         form.branch_ids.data = [branch.id for branch in user.branches]
 
     if form.validate_on_submit():
         username = form.username.data.strip()
+        email, email_error = normalize_email(form.email.data)
 
         if username_exists(username, exclude_user_id=user.id):
             flash("Toto používateľské meno už niekto používa.", "error")
+        elif email_error:
+            flash(email_error, "error")
         elif user.role == ROLE_MANAGER and not form.branch_ids.data:
             flash(
                 "Manažér musí mať priradenú aspoň jednu pobočku.", "error"
             )
         else:
             set_username(user.id, username)
+
+            if "email" in request.form:
+                set_user_email(user.id, email)
 
             if form.password.data:
                 set_password(user.id, form.password.data)

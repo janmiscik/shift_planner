@@ -211,6 +211,50 @@ sudo systemctl restart shift-planner
 `pg_dump`. Ak `pg_dump` nie je k dispozícii, **migráciu nespustí**
 (ochrana dát); na vlastné riziko ju vieš spustiť s `--no-backup`.
 
+## E-mailové upozornenia (SMTP)
+
+Appka posiela e-maily (zverejnený rozpis, žiadosti o voľno, výmeny
+smien) cez SMTP server. Bez nastavenia sú vypnuté. V `.env`:
+
+```
+SMTP_HOST=smtp.firma.sk
+SMTP_PORT=587
+SMTP_SECURITY=starttls
+SMTP_USER=planner@firma.sk
+SMTP_PASSWORD=heslo
+SMTP_FROM=Plánovač smien <planner@firma.sk>
+APP_BASE_URL=https://plan.firma.sk
+```
+
+- `SMTP_SECURITY`: `starttls` (port 587, predvolené), `ssl` (port 465)
+  alebo `none` (len pre interný server bez šifrovania).
+- SMTP údaje dá firemný poskytovateľ pošty (Microsoft 365, Google
+  Workspace, webhosting) alebo služba na transakčné e-maily (Brevo,
+  Mailgun, ...). Pri Gmaile/Microsoft 365 treba spravidla **heslo
+  aplikácie**, nie bežné heslo.
+- `APP_BASE_URL` je adresa appky, z ktorej sa robia odkazy v e-mailoch;
+  bez nej sú e-maily bez odkazov.
+- Aby e-maily nekončili v spame, odosielaj z adresy vlastnej domény a
+  nechaj správcu domény nastaviť SPF/DKIM pre SMTP službu.
+
+Overenie po nastavení:
+
+```bash
+.venv/bin/python manage.py email-status            # nastavenie a fronta
+.venv/bin/python manage.py send-test-email ty@firma.sk
+```
+
+`python manage.py serve` spustí odosielač na pozadí sám (log: "E-mailové
+upozornenia: zapnuté"). Odosielač beží v **jednom procese servera**;
+správne funguje aj s viacerými procesmi (e-mail sa pred odoslaním
+zarezervuje), len ho netreba spúšťať zbytočne viackrát. Ak chceš
+posielať z plánovača úloh namiesto vlákna, zavolaj občas
+`python manage.py send-emails`.
+
+Každý používateľ si adresu nastaví v menu **E-mail a upozornenia**
+(admin ju vie zadať aj pri vytvorení účtu). Zlyhané e-maily vidieť v
+`email-status`; staré odoslané zmažeš `python manage.py email-prune 30`.
+
 ## Ochrana prihlásenia
 
 - Po **5 neúspešných pokusoch** o prihlásenie s tým istým menom z tej
@@ -243,6 +287,7 @@ alebo admin reštartuje appku / resetuje heslo.
 - [ ] `https://...` funguje a `http://...` presmeruje na HTTPS (Caddy to robí sám)
 - [ ] firewall: otvorené len 80 a 443 (PostgreSQL port 5432 nie je z internetu dostupný)
 - [ ] nočná záloha beží a zálohy sa kopírujú mimo servera
+- [ ] (ak chceš e-mailové upozornenia) `email-status` hlási ZAPNUTÉ a `send-test-email` doručí správu
 - [ ] vytvorený admin účet; predvolené/testovacie účty zrušené
 
 ## Testovanie proti PostgreSQL (pre vývoj)

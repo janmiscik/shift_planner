@@ -182,6 +182,10 @@ def create_swap(
     db.session.add(swap)
     db.session.commit()
 
+    from app.services.notification_service import notify_swap_proposed
+
+    notify_swap_proposed(swap.id)
+
     return swap.id, None
 
 
@@ -205,6 +209,10 @@ def colleague_respond(
         swap.status = STATUS_DECLINED
         swap.colleague_responded_at = _now()
         db.session.commit()
+
+        from app.services.notification_service import notify_swap_decided
+
+        notify_swap_decided(swap.id)
 
         return True, None
 
@@ -235,6 +243,12 @@ def colleague_respond(
     swap.status = STATUS_PENDING_MANAGER
     swap.colleague_responded_at = _now()
     db.session.commit()
+
+    from app.services.notification_service import (
+        notify_swap_ready_for_manager,
+    )
+
+    notify_swap_ready_for_manager(swap.id)
 
     return True, None
 
@@ -284,6 +298,10 @@ def reject_swap(swap_id, user_id, decision_note):
     swap.decision_note = decision_note
 
     db.session.commit()
+
+    from app.services.notification_service import notify_swap_decided
+
+    notify_swap_decided(swap.id)
 
     return True, None
 
@@ -377,6 +395,10 @@ def approve_swap(swap_id, user_id, decision_note=None, today=None):
     except Exception:
         db.session.rollback()
         raise
+
+    from app.services.notification_service import notify_swap_decided
+
+    notify_swap_decided(swap.id)
 
     return True, []
 

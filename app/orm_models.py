@@ -452,6 +452,36 @@ class ShiftSwap(db.Model):
     decision_note = db.Column(db.String, nullable=True)
 
 
+class EmailOutbox(db.Model):
+    """Fronta e-mailov na odoslanie. Udalosť (zverejnený rozpis,
+    schválená žiadosť...) e-mail len uloží; posiela ho samostatné
+    vlákno/príkaz (``email_service``), takže pomalý alebo nedostupný SMTP
+    server nespomalí ani nerozbije prácu v appke.
+
+    Stav: ``pending`` (čaká), ``sending`` (práve sa posiela), ``sent``,
+    ``failed`` (po ``MAX_ATTEMPTS`` neúspešných pokusoch).
+    """
+
+    __tablename__ = "email_outbox"
+    __table_args__ = (db.Index("ix_email_outbox_status", "status"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    recipient = db.Column(db.String, nullable=False)
+    subject = db.Column(db.String, nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    status = db.Column(
+        db.String, nullable=False, default="pending", server_default="pending"
+    )
+    attempts = db.Column(
+        db.Integer, nullable=False, default=0, server_default="0"
+    )
+    last_error = db.Column(db.String, nullable=True)
+    created_at = db.Column(db.String, nullable=False)
+    updated_at = db.Column(db.String, nullable=True)
+    next_attempt_at = db.Column(db.String, nullable=True)
+    sent_at = db.Column(db.String, nullable=True)
+
+
 class User(UserMixin, db.Model):
     """Prihlasovací účet.
 
@@ -475,6 +505,13 @@ class User(UserMixin, db.Model):
         db.Integer,
         db.ForeignKey("employees.id", ondelete="CASCADE"),
         nullable=True,
+    )
+
+    # E-mailová adresa pre upozornenia (nepovinná) a súhlas s ich
+    # posielaním - pozri ``notification_service``.
+    email = db.Column(db.String, nullable=True)
+    notify_email = db.Column(
+        db.Integer, nullable=False, default=1, server_default="1"
     )
 
     employee = db.relationship("Employee", back_populates="user")

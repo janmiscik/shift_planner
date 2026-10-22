@@ -390,7 +390,16 @@ def _describe_user(session, obj, op):
         return None, f"Zmazaný účet: {obj.username} ({obj.role})"
 
     state = inspect(obj)
-    parts = _changes(obj, {"username": "meno", "role": "rola"})
+    parts = _changes(
+        obj,
+        {
+            "username": "meno",
+            "role": "rola",
+            "email": "e-mail",
+            "notify_email": "upozornenia",
+        },
+        {"notify_email": lambda v: "zapnuté" if v else "vypnuté"},
+    )
 
     if state.attrs.password_hash.history.has_changes():
         parts.append("heslo zmenené")

@@ -193,6 +193,28 @@
 
         <div class="form-group">
 
+            <label for="cred_email">
+                E-mail (pre upozornenia, nepovinné)
+            </label>
+
+            <input
+                type="email"
+                id="cred_email"
+                name="email"
+                maxlength="254"
+                value="{{ credentials_form.email.data or '' }}"
+                placeholder="meno@firma.sk"
+            >
+
+            {% for error in credentials_form.email.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
             <label for="cred_password">
                 Heslo
             </label>

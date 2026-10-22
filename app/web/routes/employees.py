@@ -11,7 +11,9 @@ from wtforms.validators import DataRequired, Length
 from app.services.branch_service import (
     get_branches,
 )
+from app.services.email_service import normalize_email
 from app.services.auth_service import (
+    set_user_email,
     create_employee_user,
     delete_user,
     get_user_by_employee_id,
@@ -93,9 +95,12 @@ def add_employee_page():
 
     if form.validate_on_submit():
         credentials_valid = credentials_form.validate()
+        email, email_error = normalize_email(credentials_form.email.data)
 
         if credentials_valid and username_exists(credentials_form.username.data):
             flash("Toto používateľské meno už niekto používa.", "error")
+        elif credentials_valid and email_error:
+            flash(email_error, "error")
         elif credentials_valid:
             branch_id = _resolve_branch_id(form.branch_id.data)
 
@@ -121,6 +126,7 @@ def add_employee_page():
                 employee_id,
                 credentials_form.username.data,
                 credentials_form.password.data,
+                email=email,
             )
 
             return redirect("/employees")
@@ -258,13 +264,18 @@ def create_employee_credentials_page(employee_id):
     ]
 
     if form.validate_on_submit():
+        email, email_error = normalize_email(form.email.data)
+
         if username_exists(form.username.data):
             flash("Toto používateľské meno už niekto používa.", "error")
+        elif email_error:
+            flash(email_error, "error")
         else:
             create_employee_user(
                 employee_id,
                 form.username.data,
                 form.password.data,
+                email=email,
             )
 
             return redirect(f"/employees/edit/{employee_id}")
@@ -301,6 +312,15 @@ def update_employee_credentials_page(employee_id):
     form = CredentialsForm()
 
     if form.validate_on_submit():
+        email, email_error = normalize_email(form.email.data)
+
+        if email_error:
+            flash(email_error, "error")
+            return redirect(f"/employees/edit/{employee_id}")
+
+        if "email" in request.form:
+            set_user_email(employee_user.id, email)
+
         if not username_exists(
             form.username.data, exclude_user_id=employee_user.id
         ):

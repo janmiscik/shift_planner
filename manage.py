@@ -8,6 +8,13 @@ Použitie:
                                             # SQLite do PostgreSQL
                                             # (DATABASE_URL), pozri
                                             # DEPLOYMENT.md
+    python manage.py email-status          # stav e-mailových upozornení
+                                            # (SMTP, fronta)
+    python manage.py send-test-email <adresa>  # skúšobný e-mail cez SMTP
+    python manage.py send-emails           # odošle e-maily z fronty
+                                            # (inak ich posiela server sám)
+    python manage.py email-prune <dni>     # zmaže odoslané e-maily
+                                            # staršie ako <dni> (min. 7)
     python manage.py audit-prune <dni>     # zmaže záznamy zmien (audit log)
                                             # staršie ako <dni> (min. 30)
     python manage.py serve                 # spustí produkčný server
@@ -84,6 +91,18 @@ def main():
 
     elif command == "serve":
         _run_serve()
+
+    elif command == "email-status":
+        _run_email_status()
+
+    elif command == "send-test-email":
+        _run_send_test_email(sys.argv[2] if len(sys.argv) > 2 else None)
+
+    elif command == "send-emails":
+        _run_send_emails()
+
+    elif command == "email-prune":
+        _run_email_prune(sys.argv[2] if len(sys.argv) > 2 else None)
 
     elif command == "audit-prune":
         _run_audit_prune(sys.argv[2] if len(sys.argv) > 2 else None)
@@ -317,6 +336,114 @@ def _run_import_sqlite(sqlite_path=None):
     print("Hotovo. Pôvodný SQLite súbor ostal nezmenený (ponechaj si ho ako zálohu).")
 
 
+def _run_email_status():
+    """Zobrazí nastavenie e-mailových upozornení a stav fronty."""
+
+    import os
+
+    from app.services.email_service import (
+        _smtp_settings,
+        outbox_counts,
+        sender_address,
+        smtp_configured,
+    )
+    from app.web.app import create_app
+
+    if not smtp_configured():
+        print("E-mailové upozornenia: VYPNUTÉ (SMTP_HOST nie je nastavený).")
+        print("Nastav SMTP_* v .env, pozri DEPLOYMENT.md.")
+        return
+
+    settings = _smtp_settings()
+
+    print("E-mailové upozornenia: ZAPNUTÉ")
+    print(f"  server     : {settings['host']}:{settings['port']} ({settings['security']})")
+    print(f"  prihlásenie: {settings['user'] or '(bez prihlásenia)'}")
+    print(f"  odosielateľ: {sender_address()}")
+    print(f"  adresa appky: {os.environ.get('APP_BASE_URL') or '(nenastavená - e-maily bez odkazov)'}")
+
+    app = create_app()
+
+    with app.app_context():
+        counts = outbox_counts()
+
+    print("Fronta e-mailov:")
+
+    for status in ("pending", "sending", "sent", "failed"):
+        print(f"  {status}: {counts.get(status, 0)}")
+
+
+def _run_send_test_email(address):
+    from app.services.email_service import (
+        normalize_email,
+        send_message,
+        smtp_configured,
+    )
+
+    if not smtp_configured():
+        print("SMTP_HOST nie je nastavený - e-maily sú vypnuté.")
+        sys.exit(1)
+
+    email, error = normalize_email(address)
+
+    if error or email is None:
+        print("Použitie: python manage.py send-test-email <e-mailová adresa>")
+        sys.exit(1)
+
+    try:
+        send_message(
+            email,
+            "Skúšobný e-mail - Shift Planner",
+            "Ak čítaš túto správu, e-mailové upozornenia fungujú.\n\n-- Shift Planner",
+        )
+    except Exception as exc:
+        print(f"Odoslanie zlyhalo: {exc}")
+        sys.exit(1)
+
+    print(f"Skúšobný e-mail bol odoslaný na {email}.")
+
+
+def _run_send_emails():
+    from app.services.email_service import process_outbox, smtp_configured
+    from app.web.app import create_app
+
+    if not smtp_configured():
+        print("SMTP_HOST nie je nastavený - e-maily sú vypnuté.")
+        sys.exit(1)
+
+    app = create_app()
+
+    with app.app_context():
+        result = process_outbox(limit=500)
+
+    print(
+        f"Odoslaných: {result['sent']}, na opakovanie: {result['retry']}, "
+        f"definitívne zlyhaných: {result['failed']}"
+    )
+
+
+def _run_email_prune(days_text):
+    from app.services.email_service import prune_sent
+    from app.web.app import create_app
+
+    try:
+        days = int(days_text)
+    except (TypeError, ValueError):
+        print("Použitie: python manage.py email-prune <počet dní> (min. 7)")
+        sys.exit(1)
+
+    if days < 7:
+        print("Dajú sa zmazať len odoslané e-maily staršie ako 7 dní.")
+        sys.exit(1)
+
+    app = create_app()
+
+    with app.app_context():
+        removed = prune_sent(days)
+
+    print(f"Zmazaných odoslaných e-mailov starších ako {days} dní: {removed}")
+
+
 def _run_audit_prune(days_text):
     """Zmaže záznamy zmien (audit log) staršie ako zadaný počet dní."""
 
@@ -391,6 +518,17 @@ def _run_serve():
         )
 
     app = create_app()
+
+    from app.services.email_service import (
+        smtp_configured,
+        start_email_worker,
+    )
+
+    if smtp_configured():
+        start_email_worker(app)
+        print("E-mailové upozornenia: zapnuté (odosielač beží na pozadí).")
+    else:
+        print("E-mailové upozornenia: vypnuté (SMTP_HOST nie je nastavený).")
 
     serve_options = {"host": host, "port": port, "threads": threads}
 

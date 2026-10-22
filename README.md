@@ -112,6 +112,42 @@ routov, nová routa je teda predvolene len pre admina). Test
 `test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
 pri novej route nerozhodneš, kto ju smie používať.
 
+## E-mailové upozornenia
+
+Appka vie posielať e-maily o udalostiach, takže ľudia nemusia sledovať
+appku. Zapnú sa nastavením SMTP servera v `.env` (pozri `DEPLOYMENT.md`);
+bez neho sa nič neposiela a appka funguje ako doteraz.
+
+Kto dostane e-mail (ak má v účte adresu a nevypol si upozornenia):
+
+| Udalosť | Komu |
+|---|---|
+| Zverejnený rozpis týždňa | každý zamestnanec, ktorému sa zverejnila smena - s jeho smenami na ten týždeň |
+| Nová žiadosť o voľno | manažéri pobočky (ak žiaden nemá adresu, admini) |
+| Schválená/zamietnutá žiadosť o voľno | zamestnanec (aj s poznámkou manažéra) |
+| Návrh výmeny smeny | kolega, ktorému je určený |
+| Kolega prijal výmenu | manažéri pobočky (na schválenie) |
+| Výmena schválená/zamietnutá | obaja zamestnanci (s dôvodom pri zamietnutí) |
+| Kolega odmietol výmenu | navrhovateľ |
+
+- **Adresu** si každý nastaví v menu **E-mail a upozornenia**
+  (`/account/settings`), kde môže upozornenia aj vypnúť a poslať si
+  skúšobný e-mail. Admin ju vie zadať aj pri vytvorení účtu (stránka
+  Účty, účet zamestnanca na stránke zamestnanca).
+- Manažér/zamestnanec **nedostane upozornenie na vlastnú žiadosť**, ktorú
+  má sám schváliť.
+- E-mail sa pri udalosti len uloží do **fronty v databáze** a posiela ho
+  odosielač na pozadí (`python manage.py serve` ho spustí sám). Pomalý
+  alebo nedostupný SMTP server tak nikdy nespomalí ani nerozbije prácu v
+  appke. Neúspešný e-mail sa skúsi znova (5 pokusov s rastúcim
+  odstupom), potom sa označí ako zlyhaný.
+- Správcovské príkazy: `python manage.py email-status` (nastavenie a stav
+  fronty), `send-test-email <adresa>`, `send-emails` (odošle frontu
+  naraz, napr. z plánovača úloh) a `email-prune <dni>` (zmaže odoslané
+  e-maily staršie ako 7 dní).
+- E-mailové adresy sú osobné údaje: ukladajú sa len v účte, nepovinne, a
+  dá sa ich kedykoľvek zmazať alebo upozornenia vypnúť.
+
 ## Výmena smien
 
 Zamestnanec (aj manažér, ktorý je zároveň zamestnancom) v menu **Výmeny

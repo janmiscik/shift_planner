@@ -29,7 +29,7 @@ def username_exists(username, exclude_user_id=None):
     return db.session.execute(query).first() is not None
 
 
-def create_admin(username, password):
+def create_admin(username, password, email=None):
     """Vytvorí účet administrátora (plný prístup ku všetkému). Vráti
     ``None``, ak používateľské meno už existuje."""
 
@@ -41,6 +41,7 @@ def create_admin(username, password):
         password_hash=generate_password_hash(password),
         role=ROLE_ADMIN,
         employee_id=None,
+        email=email,
     )
 
     db.session.add(user)
@@ -49,7 +50,7 @@ def create_admin(username, password):
     return user.id
 
 
-def create_manager(username, password, branch_ids=()):
+def create_manager(username, password, branch_ids=(), email=None):
     """Vytvorí účet manažéra - vytvára smeny a absencie, ale len na
     pridelených pobočkách (``branch_ids``). Vráti ``None``, ak
     používateľské meno už existuje."""
@@ -62,6 +63,7 @@ def create_manager(username, password, branch_ids=()):
         password_hash=generate_password_hash(password),
         role=ROLE_MANAGER,
         employee_id=None,
+        email=email,
     )
     user.branches = _branches_by_ids(branch_ids)
 
@@ -150,7 +152,7 @@ def count_admins():
     ).scalar()
 
 
-def create_employee_user(employee_id, username, password):
+def create_employee_user(employee_id, username, password, email=None):
     """Vytvorí prihlasovací účet naviazaný na konkrétneho
     zamestnanca (prístup len na čítanie vlastného rozpisu). Vráti
     ``None``, ak používateľské meno už existuje."""
@@ -163,12 +165,33 @@ def create_employee_user(employee_id, username, password):
         password_hash=generate_password_hash(password),
         role=ROLE_EMPLOYEE,
         employee_id=employee_id,
+        email=email,
     )
 
     db.session.add(user)
     db.session.commit()
 
     return user.id
+
+
+def set_user_email(user_id, email, notify_email=None):
+    """Nastaví e-mailovú adresu účtu (``None`` = bez adresy) a voliteľne
+    súhlas s upozorneniami (``None`` = nemení sa). Vráti ``False``, ak
+    účet neexistuje."""
+
+    user = db.session.get(User, user_id)
+
+    if user is None:
+        return False
+
+    user.email = email
+
+    if notify_email is not None:
+        user.notify_email = 1 if notify_email else 0
+
+    db.session.commit()
+
+    return True
 
 
 def get_user_by_username(username):

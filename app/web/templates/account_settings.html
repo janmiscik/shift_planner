@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Môj účet - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Môj účet</h1>
+
+        <p>
+            E-mail a upozornenia pre účet <strong>{{ current_user.username }}</strong>.
+        </p>
+    </div>
+
+    <a class="btn btn-secondary" href="/account/password">
+        🔒 Zmeniť heslo
+    </a>
+
+</div>
+
+
+<div class="card">
+
+    <p>
+        Upozornenia ti pošleme na tvoju e-mailovú adresu: o zverejnenom
+        rozpise, vybavených žiadostiach o voľno a výmenách smien
+        (manažérom o žiadostiach, ktoré čakajú na schválenie).
+    </p>
+
+    {% if not email_enabled %}
+
+        <p>
+            <strong>Poznámka:</strong> e-mailové upozornenia nie sú na
+            serveri zapnuté, takže zatiaľ žiadne neodchádzajú. Adresu si
+            môžeš uložiť vopred.
+        </p>
+
+    {% endif %}
+
+    <form method="post">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
+        <div class="form-group">
+
+            <label for="email">
+                E-mailová adresa
+            </label>
+
+            <input
+                type="email"
+                id="email"
+                name="email"
+                maxlength="254"
+                value="{{ form.email.data or '' }}"
+                placeholder="meno@firma.sk"
+            >
+
+            {% for error in form.email.errors %}
+                <span class="field-error">{{ error }}</span>
+            {% endfor %}
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label style="font-weight: normal;">
+
+                <input
+                    type="checkbox"
+                    name="notify_email"
+                    {% if form.notify_email.data %}checked{% endif %}
+                >
+
+                Posielať mi e-mailové upozornenia
+
+            </label>
+
+        </div>
+
+
+        <div class="actions">
+
+            <button type="submit">
+                Uložiť
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
+
+
+{% if email_enabled and current_user.email %}
+
+<div class="card" style="margin-top: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Skúšobný e-mail
+    </h3>
+
+    <p>
+        Pošleme skúšobnú správu na <strong>{{ current_user.email }}</strong>,
+        aby si si overil, že e-maily prichádzajú (pozri aj priečinok
+        spam).
+    </p>
+
+    <form method="post" action="/account/settings/test-email">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <button type="submit" class="btn btn-secondary">
+            Odoslať skúšobný e-mail
+        </button>
+
+    </form>
+
+</div>
+
+{% endif %}
+
+{% endblock %}

@@ -17,8 +17,15 @@ from app.orm_models import ROLE_EMPLOYEE
 from app.services.auth_service import (
     change_own_password,
     authenticate,
+    set_user_email,
+)
+from app.services.email_service import (
+    normalize_email,
+    send_message,
+    smtp_configured,
 )
 from app.web.forms import (
+    AccountSettingsForm,
     ChangePasswordForm,
     LoginForm,
 )
@@ -164,3 +171,62 @@ def change_password_page():
         flash("Aktuálne heslo nie je správne.", "error")
 
     return render_template("change_password.html", form=form)
+
+
+@bp.route("/account/settings", methods=["GET", "POST"])
+def account_settings_page():
+    """Vlastný e-mail a súhlas s e-mailovými upozorneniami (každá
+    rola)."""
+
+    form = AccountSettingsForm()
+
+    if request.method == "GET":
+        form.email.data = current_user.email or ""
+        form.notify_email.data = bool(current_user.notify_email)
+
+    if form.validate_on_submit():
+        email, error = normalize_email(form.email.data)
+
+        if error:
+            flash(error, "error")
+        else:
+            set_user_email(current_user.id, email, form.notify_email.data)
+            flash("Nastavenia boli uložené.", "success")
+
+            return redirect("/account/settings")
+
+    return render_template(
+        "account_settings.html",
+        form=form,
+        email_enabled=smtp_configured(),
+    )
+
+
+@bp.route("/account/settings/test-email", methods=["POST"])
+def send_test_email_page():
+    """Odošle skúšobný e-mail na adresu prihláseného používateľa."""
+
+    if not smtp_configured():
+        flash(
+            "E-mailové upozornenia nie sú na serveri nastavené (SMTP).",
+            "error",
+        )
+    elif not current_user.email:
+        flash("Najprv ulož svoju e-mailovú adresu.", "error")
+    else:
+        address = current_user.email
+
+        try:
+            send_message(
+                address,
+                "Skúšobný e-mail - Shift Planner",
+                "Ak čítaš túto správu, e-mailové upozornenia fungujú.\n\n"
+                "-- Shift Planner",
+            )
+        except Exception as error:
+            flash(f"Odoslanie zlyhalo: {error}", "error")
+        else:
+            flash(f"Skúšobný e-mail bol odoslaný na {address}.", "success")
+
+    return redirect("/account/settings")
+

@@ -51,6 +51,8 @@ _PUBLIC_ENDPOINTS = {"main.login_page", "static"}
 _COMMON_ENDPOINTS = {
     "main.logout_page",
     "main.change_password_page",
+    "main.account_settings_page",
+    "main.send_test_email_page",
 }
 
 # Vlastný rozpis a jeho export (zamestnanec; aj manažér, ktorý je

@@ -103,6 +103,10 @@ def create_request(
     db.session.add(leave_request)
     db.session.commit()
 
+    from app.services.notification_service import notify_leave_requested
+
+    notify_leave_requested(leave_request.id)
+
     return leave_request.id, None
 
 
@@ -240,6 +244,10 @@ def approve_request(request_id, user_id, decision_note=None):
 
     db.session.commit()
 
+    from app.services.notification_service import notify_leave_decided
+
+    notify_leave_decided(request_id)
+
     return True, None
 
 
@@ -266,6 +274,10 @@ def reject_request(request_id, user_id, decision_note):
     leave_request.decision_note = decision_note
 
     db.session.commit()
+
+    from app.services.notification_service import notify_leave_decided
+
+    notify_leave_decided(request_id)
 
     return True, None
 
