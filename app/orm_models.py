@@ -482,6 +482,39 @@ class EmailOutbox(db.Model):
     sent_at = db.Column(db.String, nullable=True)
 
 
+class AvailabilityRule(db.Model):
+    """Kedy zamestnanec NEMÔŽE pracovať (jeho vlastné oznámenie - nie je
+    to absencia a neschvaľuje sa; manažér dostane upozornenie pri
+    plánovaní smeny, ale smenu môže zapísať).
+
+    Dva druhy:
+      - opakované: ``weekday`` (0 = pondelok ... 6 = nedeľa), voliteľne
+        s platnosťou ``date_from``/``date_to``,
+      - jednorazové: ``weekday`` je ``None``, ``date_from``..``date_to``
+        (vrátane).
+    ``time_from``/``time_to`` (HH:MM) určujú časť dňa; obe ``None`` =
+    celý deň.
+    """
+
+    __tablename__ = "availability_rules"
+
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    weekday = db.Column(db.Integer, nullable=True)
+    date_from = db.Column(db.String, nullable=True)
+    date_to = db.Column(db.String, nullable=True)
+    time_from = db.Column(db.String, nullable=True)
+    time_to = db.Column(db.String, nullable=True)
+    note = db.Column(db.String, nullable=True)
+    created_at = db.Column(db.String, nullable=True)
+
+    employee = db.relationship("Employee")
+
+
 class User(UserMixin, db.Model):
     """Prihlasovací účet.
 

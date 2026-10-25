@@ -58,6 +58,33 @@ if TEST_DATABASE_URL:
     app_module.create_app = _create_app_on_postgres
 
 
+@pytest.fixture(scope="session", autouse=True)
+def fast_password_hashing():
+    """Testy vytvárajú tisíce účtov a prihlásení. Bežná (bezpečná) metóda
+    ``scrypt`` trvá ~190 ms na vytvorenie a ~75 ms na overenie hesla, čo
+    predlžovalo beh testov o minúty (najmä na Windowse). V testoch ju
+    nahradíme rýchlou metódou; ``check_password_hash`` si poradí s
+    ľubovoľnou, takže overovanie funguje rovnako. Produkčný kód sa
+    NEMENÍ (pozri ``tests/test_password_hashing.py``)."""
+
+    import functools
+
+    from werkzeug.security import generate_password_hash
+
+    from app.services import auth_service
+
+    patcher = pytest.MonkeyPatch()
+    patcher.setattr(
+        auth_service,
+        "generate_password_hash",
+        functools.partial(generate_password_hash, method="pbkdf2:sha256:1000"),
+    )
+
+    yield
+
+    patcher.undo()
+
+
 def pytest_collection_modifyitems(config, items):
     if not TEST_DATABASE_URL:
         return

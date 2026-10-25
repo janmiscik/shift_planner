@@ -41,6 +41,11 @@ from app.services.export_service import (
     build_shifts_workbook,
 )
 from app.services.capacity_service import get_understaffed_shifts
+from app.services.availability_service import (
+    conflicts_for_shifts,
+    shift_conflicts,
+    warning_text,
+)
 
 from app.web.core import bp
 from app.web.helpers import (
@@ -254,7 +259,16 @@ def api_shifts():
         else get_draft_shift_ids(first_day, last_day, _scope())
     )
 
-    events = shifts_to_fullcalendar_events(shifts, draft_ids)
+    # Upozornenie na nedostupnosť zamestnanca vidí len manažér/admin.
+    unavailable_ids = (
+        None
+        if is_employee_view
+        else set(
+            conflicts_for_shifts(shifts, from_date=date.today().isoformat())
+        )
+    )
+
+    events = shifts_to_fullcalendar_events(shifts, draft_ids, unavailable_ids)
 
     if current_user.role == ROLE_EMPLOYEE:
         # Zamestnanec vidí rozpis pobočky, ale nie stav týždenných
@@ -299,4 +313,13 @@ def api_move_shift(shift_id):
 
     move_shift(shift_id, new_date, new_start, new_end)
 
-    return jsonify({"ok": True})
+    conflicts = shift_conflicts(shift[1], new_date, new_start, new_end)
+
+    response = {"ok": True}
+
+    # Pole "warnings" sa pridá len ak upozornenie existuje (odpoveď
+    # bez upozornenia ostáva rovnaká ako doteraz).
+    if conflicts:
+        response["warnings"] = [warning_text(conflicts)]
+
+    return jsonify(response)

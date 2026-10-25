@@ -112,6 +112,35 @@ routov, nová routa je teda predvolene len pre admina). Test
 `test_every_endpoint_has_an_explicit_permission_decision` zlyhá, kým
 pri novej route nerozhodneš, kto ju smie používať.
 
+## Dostupnosť zamestnancov (kedy nemôžu pracovať)
+
+Zamestnanec (aj manažér, ktorý je zároveň zamestnancom) si v menu **Moja
+dostupnosť** (`/my-availability`) zapíše, kedy **nemôže pracovať**:
+
+- **opakovane** - napr. "každú stredu 14:00-22:00 - škola" (voliteľne s
+  platnosťou od-do),
+- **jednorazovo** - napr. "5.-7.10. celý deň - svadba" alebo len časť dňa.
+
+Je to jeho oznámenie, **neschvaľuje sa** a nie je to absencia (na
+dovolenku, PN a OČR slúžia žiadosti o voľno a absencie). Je to **mäkké
+obmedzenie**: manažér smenu v takom čase môže zapísať aj napriek tomu, appka
+ho len **upozorní** (oranžové hlásenie) pri:
+
+- pridaní alebo úprave smeny a presune smeny v kalendári,
+- kopírovaní týždňa a použití šablóny (v náhľade pri danej smene),
+- schválení výmeny smien (výmena prebehne, upozornenie sa zobrazí).
+
+Smeny, ktoré sa prekrývajú s nedostupnosťou zamestnanca, sú navyše
+označené v zozname smien (⚠) a v kalendári (oranžový obrys). Manažér a
+admin vidia prehľad v menu **Dostupnosť zamestnancov** (`/availability`) -
+len na čítanie a len z ich pobočiek.
+
+Smena cez polnoc sa posudzuje podľa kalendárnych dní, takže nočná z piatka
+na sobotu koliduje aj s pravidlom "každú sobotu do 08:00". Čas "do" musí
+byť neskôr než "od" (pre noc cez polnoc pridaj dve pravidlá). Zapísať sa
+nedá obdobie, ktoré už skončilo; skončené pravidlá sa z prehľadov
+skryjú. Pravidlá sa zapisujú aj do záznamov zmien.
+
 ## E-mailové upozornenia
 
 Appka vie posielať e-maily o udalostiach, takže ľudia nemusia sledovať

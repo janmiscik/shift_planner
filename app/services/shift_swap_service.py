@@ -29,6 +29,7 @@ from app.orm_models import (
     ShiftSwap,
     User,
 )
+from app.services.availability_service import shift_conflicts
 from app.services.shift_service import validate_shift
 
 STATUS_PENDING_COLLEAGUE = "pending_colleague"
@@ -309,7 +310,8 @@ def reject_swap(swap_id, user_id, decision_note):
 def approve_swap(swap_id, user_id, decision_note=None, today=None):
     """Manažér žiadosť schváli a smeny prehodí.
 
-    Vráti ``(True, [])`` alebo ``(False, [chyby])``. Pri akejkoľvek
+    Vráti ``(True, [upozornenia])`` (upozornenia na nedostupnosť
+    zamestnanca - neblokujú) alebo ``(False, [chyby])``. Pri akejkoľvek
     chybe sa nič nezmení (transakcia sa vráti späť).
     """
 
@@ -400,7 +402,24 @@ def approve_swap(swap_id, user_id, decision_note=None, today=None):
 
     notify_swap_decided(swap.id)
 
-    return True, []
+    # Nedostupnosť je mäkké obmedzenie: výmenu neblokuje, len upozorní.
+    warnings = []
+
+    for shift, owner in ((offered, colleague), (counter, proposer)):
+        if shift is None:
+            continue
+
+        conflicts = shift_conflicts(
+            owner.id, shift.shift_date, shift.start_time, shift.end_time
+        )
+
+        if conflicts:
+            warnings.append(
+                f"{_employee_name(owner)} ({shift_text(shift)}) v tom čase "
+                f"uviedol, že nemôže pracovať: " + "; ".join(conflicts)
+            )
+
+    return True, warnings
 
 
 # ---------------------------------------------------------------------

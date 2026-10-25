@@ -10,6 +10,7 @@ from app.web.routes import (  # noqa: F401
     admin,
     audit,
     auth,
+    availability,
     calendar_views,
     departments,
     employees,

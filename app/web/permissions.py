@@ -67,6 +67,8 @@ _OWN_SCHEDULE_ENDPOINTS = {
     "main.my_swaps_page",
     "main.respond_swap_page",
     "main.cancel_swap_page",
+    "main.my_availability_page",
+    "main.delete_availability_rule_page",
 }
 
 # Zamestnanec: vlastný rozpis a jeho export.
@@ -111,6 +113,7 @@ _MANAGER_ALLOWED_ENDPOINTS = (
         "main.hours_report_export_csv",
         "main.audit_page",
         "main.audit_export_csv",
+        "main.availability_page",
         "main.swap_requests_page",
         "main.approve_swap_page",
         "main.reject_swap_page",

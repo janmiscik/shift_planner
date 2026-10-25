@@ -53,7 +53,7 @@ def shift_css_class(shift_type):
     return SHIFT_TYPE_CSS_CLASS.get(shift_type, "shift-default")
 
 
-def shifts_to_fullcalendar_events(shifts, draft_ids=None):
+def shifts_to_fullcalendar_events(shifts, draft_ids=None, unavailable_ids=None):
     """Prevedie riadky smien na udalosti pre FullCalendar (JS knižnicu).
 
     Ku každej udalosti pridá aj stav týždenného fondu hodín
@@ -63,7 +63,9 @@ def shifts_to_fullcalendar_events(shifts, draft_ids=None):
 
     ``draft_ids`` (množina ID smien v koncepte) označí rozpracované
     smeny triedou ``shift-draft``; ``None`` = nerozlišuje sa (pohľad
-    zamestnanca, ktorý vidí len zverejnené).
+    zamestnanca, ktorý vidí len zverejnené). ``unavailable_ids`` (ID smien,
+    ktoré sa prekrývajú s nedostupnosťou zamestnanca) označí smeny
+    triedou ``shift-unavailable``.
     """
 
     from app.services.shift_service import (
@@ -120,6 +122,13 @@ def shifts_to_fullcalendar_events(shifts, draft_ids=None):
         if is_draft:
             css_classes.append("shift-draft")
 
+        is_unavailable = (
+            unavailable_ids is not None and shift_id in unavailable_ids
+        )
+
+        if is_unavailable:
+            css_classes.append("shift-unavailable")
+
         if hours_status is not None and hours_status["status"] != "ok":
             css_classes.append(f"hours-{hours_status['status']}")
 
@@ -138,6 +147,7 @@ def shifts_to_fullcalendar_events(shifts, draft_ids=None):
                     "overnight": end_time <= start_time,
                     "weeklyHours": hours_status,
                     "draft": is_draft,
+                    "unavailable": is_unavailable,
                 },
                 "className": " ".join(css_classes),
             }

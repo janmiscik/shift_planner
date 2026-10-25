@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Moja dostupnosť - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Moja dostupnosť</h1>
+
+        <p>
+            Zapíš si, kedy <strong>nemôžeš pracovať</strong> (škola, druhé
+            zamestnanie, pravidelné povinnosti...). Neschvaľuje sa:
+            manažér to uvidí a pri plánovaní dostane upozornenie. Je to
+            žiadosť o ohľad, nie zaručená výnimka - smenu ti v tom čase
+            môže napriek tomu dať. Na dovolenku alebo PN použi žiadosť o
+            voľno.
+        </p>
+    </div>
+
+    <a class="btn btn-secondary" href="/my-schedule">
+        📅 Môj rozpis
+    </a>
+
+</div>
+
+
+<div class="card">
+
+    <h3 style="margin-top: 0;">
+        Opakovane (každý týždeň)
+    </h3>
+
+    <form method="post">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="kind" value="weekly">
+
+        <div class="form-group">
+
+            <label for="weekly_weekday">
+                Deň v týždni
+            </label>
+
+            <select id="weekly_weekday" name="weekday" required>
+
+                {% for name in weekday_names %}
+                    <option value="{{ loop.index0 }}">{{ name }}</option>
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+        <div class="form-group">
+
+            <label style="font-weight: normal;">
+                <input
+                    type="checkbox"
+                    name="all_day"
+                    value="1"
+                    checked
+                    onchange="toggleTimes(this)"
+                >
+                Celý deň
+            </label>
+
+        </div>
+
+        <div class="form-group times" style="display: none;">
+
+            <label>Od - do</label>
+
+            <input type="time" name="time_from">
+            <input type="time" name="time_to">
+
+        </div>
+
+        <div class="form-group">
+
+            <label for="weekly_from">
+                Platí od (nepovinné)
+            </label>
+
+            <input type="date" id="weekly_from" name="date_from" min="{{ today }}">
+
+            <label for="weekly_to">
+                do (nepovinné)
+            </label>
+
+            <input type="date" id="weekly_to" name="date_to" min="{{ today }}">
+
+        </div>
+
+        <div class="form-group">
+
+            <label for="weekly_note">
+                Poznámka (nepovinné)
+            </label>
+
+            <input type="text" id="weekly_note" name="note" maxlength="255" placeholder="Napr. škola">
+
+        </div>
+
+        <div class="actions">
+            <button type="submit">Pridať opakované pravidlo</button>
+        </div>
+
+    </form>
+
+</div>
+
+
+<div class="card" style="margin-top: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Jednorazovo (konkrétny dátum)
+    </h3>
+
+    <form method="post">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="kind" value="date">
+
+        <div class="form-group">
+
+            <label for="once_from">
+                Od
+            </label>
+
+            <input type="date" id="once_from" name="date_from" min="{{ today }}" required>
+
+            <label for="once_to">
+                Do (nepovinné, inak len jeden deň)
+            </label>
+
+            <input type="date" id="once_to" name="date_to" min="{{ today }}">
+
+        </div>
+
+        <div class="form-group">
+
+            <label style="font-weight: normal;">
+                <input
+                    type="checkbox"
+                    name="all_day"
+                    value="1"
+                    checked
+                    onchange="toggleTimes(this)"
+                >
+                Celý deň
+            </label>
+
+        </div>
+
+        <div class="form-group times" style="display: none;">
+
+            <label>Od - do</label>
+
+            <input type="time" name="time_from">
+            <input type="time" name="time_to">
+
+        </div>
+
+        <div class="form-group">
+
+            <label for="once_note">
+                Poznámka (nepovinné)
+            </label>
+
+            <input type="text" id="once_note" name="note" maxlength="255" placeholder="Napr. svadba">
+
+        </div>
+
+        <div class="actions">
+            <button type="submit">Pridať jednorazové obdobie</button>
+        </div>
+
+    </form>
+
+</div>
+
+
+<div class="card" style="margin-top: 20px;">
+
+    <h3 style="margin-top: 0;">
+        Moje zapísané pravidlá
+    </h3>
+
+    {% if rules %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Kedy nemôžem</th>
+                    <th>Poznámka</th>
+                    <th>Akcie</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for row in rules %}
+
+                    <tr>
+
+                        <td>{{ describe_rule(row[0]) }}</td>
+
+                        <td>{{ row[0].note or "—" }}</td>
+
+                        <td class="actions">
+
+                            <form
+                                method="POST"
+                                action="/my-availability/{{ row[0].id }}/delete"
+                                onsubmit="return confirm('Naozaj chceš zrušiť toto pravidlo?');"
+                            >
+
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                <button type="submit" class="btn btn-delete btn-small">
+                                    Zrušiť
+                                </button>
+
+                            </form>
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+            <p>Zatiaľ si nezapísal nič - manažér ťa môže naplánovať kedykoľvek.</p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+<script>
+    function toggleTimes(checkbox) {
+        var times = checkbox.closest("form").querySelector(".times");
+
+        if (times) {
+            times.style.display = checkbox.checked ? "none" : "";
+        }
+    }
+</script>
+
+{% endblock %}

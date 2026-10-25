@@ -98,6 +98,10 @@
                                 {% if committed %}Vytvorená{% else %}Vytvorí sa{% endif %}
                             </span>
 
+                            {% for warning in row.warnings %}
+                                <br><small>⚠ Zamestnanec v tom čase uviedol, že nemôže pracovať: {{ warning }}</small>
+                            {% endfor %}
+
                         {% else %}
 
                             <span class="status-inactive">

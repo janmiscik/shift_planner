@@ -247,6 +247,11 @@
             Koncept (zamestnanec ho zatiaľ nevidí)
         </div>
 
+        <div class="legend-item">
+            <span class="legend-color legend-unavailable"></span>
+            Zamestnanec v tom čase uviedol, že nemôže pracovať
+        </div>
+
     {% endif %}
 
 </div>
@@ -256,6 +261,17 @@
     .fc-event.shift-draft {
         opacity: 0.6;
         border-style: dashed !important;
+    }
+
+    /* Smena v čase, keď zamestnanec uviedol, že nemôže pracovať. */
+    .fc-event.shift-unavailable {
+        outline: 2px solid #f59e0b;
+        outline-offset: -2px;
+    }
+
+    .legend-unavailable {
+        background: #fff;
+        border: 2px solid #f59e0b;
     }
 
     .legend-draft {
@@ -400,6 +416,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (!ok) {
                     alert(data.error || defaultErrorMessage);
                     info.revert();
+                    return;
+                }
+
+                // Nedostupnosť zamestnanca je len upozornenie - smena sa
+                // presunula, ale manažér má o tom vedieť.
+                if (data.warnings && data.warnings.length) {
+                    alert(data.warnings.join("\n"));
                 }
             })
             .catch(() => {

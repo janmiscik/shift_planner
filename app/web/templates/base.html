@@ -74,6 +74,11 @@
                     <span>Výmeny smien{% if incoming_swaps %} ({{ incoming_swaps }}){% endif %}</span>
                 </a>
 
+                <a href="/my-availability">
+                    <span class="nav-icon">🚫</span>
+                    <span>Moja dostupnosť</span>
+                </a>
+
                 {% if employees_can_view_calendar %}
 
                     <a href="/calendar">
@@ -105,6 +110,11 @@
                     <a href="/my-swaps">
                         <span class="nav-icon">🔁</span>
                         <span>Moje výmeny smien{% if incoming_swaps %} ({{ incoming_swaps }}){% endif %}</span>
+                    </a>
+
+                    <a href="/my-availability">
+                        <span class="nav-icon">🚫</span>
+                        <span>Moja dostupnosť</span>
                     </a>
 
                 {% endif %}
@@ -142,6 +152,11 @@
                 <a href="/audit">
                     <span class="nav-icon">🕘</span>
                     <span>Záznamy zmien</span>
+                </a>
+
+                <a href="/availability">
+                    <span class="nav-icon">🚫</span>
+                    <span>Dostupnosť zamestnancov</span>
                 </a>
 
                 <a href="/swap-requests">

@@ -41,6 +41,9 @@
     --flash-success-bg: #f0fdf4;
     --flash-success-border: #bbf7d0;
     --flash-success-text: #166534;
+    --flash-warning-bg: #fffbeb;
+    --flash-warning-border: #fde68a;
+    --flash-warning-text: #92400e;
     --capacity-bg: #fff7ed;
     --capacity-border: #f59e0b;
     --capacity-text: #92400e;
@@ -82,6 +85,9 @@
     --flash-success-bg: #0f2a1a;
     --flash-success-border: #166534;
     --flash-success-text: #86efac;
+    --flash-warning-bg: #2a2110;
+    --flash-warning-border: #92400e;
+    --flash-warning-text: #fcd34d;
     --capacity-bg: #2b1d0a;
     --capacity-border: #b45309;
     --capacity-text: #fcd34d;
@@ -1195,7 +1201,13 @@ tbody tr:last-child td {
     color: var(--flash-success-text);
 }
 
-.flash-message:not(.flash-error):not(.flash-success) {
+.flash-warning {
+    background: var(--flash-warning-bg);
+    border-color: var(--flash-warning-border);
+    color: var(--flash-warning-text);
+}
+
+.flash-message:not(.flash-error):not(.flash-success):not(.flash-warning) {
     background: var(--flash-error-bg);
     border-color: var(--flash-error-border);
     color: var(--flash-error-text);

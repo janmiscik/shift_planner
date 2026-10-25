@@ -147,6 +147,14 @@
 
                             {% endif %}
 
+                            {% if availability_conflicts.get(shift[0]) %}
+                                <br>
+                                <small style="color: var(--flash-warning-text);">
+                                    ⚠ Zamestnanec v tom čase nemôže:
+                                    {{ availability_conflicts[shift[0]]|join("; ") }}
+                                </small>
+                            {% endif %}
+
                         </td>
 
                         <td class="created-at">

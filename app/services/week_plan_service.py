@@ -31,6 +31,10 @@ from app.services.shift_service import (
     validate_shift,
 )
 from app.services.audit_service import suppressed
+from app.services.availability_service import (
+    rules_for_employees,
+    shift_conflicts,
+)
 from app.services.text_utils import same_name
 
 WEEKDAY_NAMES = [
@@ -80,6 +84,9 @@ class PlanRow:
     shift_date: str
     status: str  # "create" alebo "skip"
     reasons: list = field(default_factory=list)
+    # Upozornenia (smena sa vytvorí, ale zamestnanec v tom čase uviedol,
+    # že nemôže pracovať).
+    warnings: list = field(default_factory=list)
 
     @property
     def weekday_name(self):
@@ -177,6 +184,7 @@ def run_plan(entries, target_monday, commit):
 
 def _run_plan(entries, target_monday, commit):
     rows = []
+    rules_cache = {}
     published = 1 if auto_publish_enabled() else 0
 
     try:
@@ -232,6 +240,22 @@ def _run_plan(entries, target_monday, commit):
             db.session.flush()
 
             row.status = "create"
+
+            if entry.employee_id not in rules_cache:
+                rules_cache[entry.employee_id] = rules_for_employees(
+                    [entry.employee_id]
+                )[entry.employee_id]
+
+            conflicts = shift_conflicts(
+                entry.employee_id,
+                shift_date,
+                entry.start_time,
+                entry.end_time,
+                rules=rules_cache[entry.employee_id],
+            )
+
+            if conflicts:
+                row.warnings.extend(conflicts)
 
         if commit:
             db.session.commit()

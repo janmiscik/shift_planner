@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Dostupnosť zamestnancov - Shift Planner
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>Dostupnosť zamestnancov</h1>
+
+        <p>
+            Kedy zamestnanci uviedli, že <strong>nemôžu pracovať</strong>.
+            Je to ich oznámenie, nie schválená absencia: pri pridaní,
+            úprave alebo presune smeny v tomto čase ťa appka upozorní,
+            ale smenu môžeš zapísať aj tak. Smeny, ktoré sa s takýmto
+            obdobím prekrývajú, sú v zozname smien a v kalendári
+            označené.
+        </p>
+    </div>
+
+</div>
+
+{% include "_branch_filter.html" %}
+
+<div class="card">
+
+    {% if rows %}
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>Zamestnanec</th>
+                    {% if branches|length > 1 %}
+                        <th>Pobočka</th>
+                    {% endif %}
+                    <th>Kedy nemôže pracovať</th>
+                    <th>Poznámka</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for row in rows %}
+
+                    <tr>
+
+                        <td><strong>{{ row[1] }} {{ row[2] }}</strong></td>
+
+                        {% if branches|length > 1 %}
+                            <td>{{ row[4] }}</td>
+                        {% endif %}
+
+                        <td>{{ describe_rule(row[0]) }}</td>
+
+                        <td>{{ row[0].note or "—" }}</td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    {% else %}
+
+        <div class="empty">
+            <p>Nikto zatiaľ nezapísal žiadne obmedzenie dostupnosti.</p>
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

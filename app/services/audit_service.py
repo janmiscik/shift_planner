@@ -43,6 +43,7 @@ from app.orm_models import (
     ShiftTemplate,
     User,
 )
+from app.orm_models import AvailabilityRule
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ ENTITY_LABELS = {
     "absence": "Absencie",
     "leave_request": "Žiadosti o voľno",
     "swap": "Výmeny smien",
+    "availability": "Dostupnosť",
     "employee": "Zamestnanci",
     "assignment": "Priradenia k oddeleniam",
     "department": "Oddelenia",
@@ -284,6 +286,24 @@ def _describe_leave_request(session, obj, op):
     return branch_id, summary
 
 
+def _describe_availability(session, obj, op):
+    from app.services.availability_service import describe_rule
+
+    branch_id = _employee_branch_id(session, obj.employee_id)
+    text = (
+        f"{_employee_name(session, obj.employee_id)} - "
+        f"{describe_rule(obj, with_note=True)}"
+    )
+
+    if op == "create":
+        return branch_id, f"Zapísaná nedostupnosť: {text}"
+
+    if op == "delete":
+        return branch_id, f"Zrušená nedostupnosť: {text}"
+
+    return None
+
+
 def _describe_swap(session, obj, op):
     from app.services.shift_swap_service import STATUS_LABELS
 
@@ -464,6 +484,7 @@ _TRACKED = {
     Absence: ("absence", _describe_absence),
     LeaveRequest: ("leave_request", _describe_leave_request),
     ShiftSwap: ("swap", _describe_swap),
+    AvailabilityRule: ("availability", _describe_availability),
     Employee: ("employee", _describe_employee),
     Department: ("department", _describe_department),
     Branch: ("branch", _describe_branch),

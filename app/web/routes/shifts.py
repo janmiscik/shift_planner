@@ -39,6 +39,11 @@ from app.web.forms import (
     ShiftForm,
 )
 
+from app.services.availability_service import (
+    conflicts_for_shifts,
+    shift_conflicts,
+    warning_text,
+)
 from app.web.core import bp
 from app.web.helpers import (
     _accessible_branches,
@@ -55,6 +60,16 @@ from app.web.helpers import (
 # Smeny
 # ---------------------------------------------------------------------
 
+def _warn_about_availability(employee_id, shift_date, start_time, end_time):
+    """Nezablokuje uloženie - len upozorní manažéra, že zamestnanec v tom
+    čase uviedol, že nemôže pracovať."""
+
+    conflicts = shift_conflicts(employee_id, shift_date, start_time, end_time)
+
+    if conflicts:
+        flash(warning_text(conflicts), "warning")
+
+
 @bp.route("/shifts")
 def shifts_page():
     scope = _scope()
@@ -65,6 +80,9 @@ def shifts_page():
         "shifts.html",
         shifts=shifts,
         draft_ids=get_draft_shift_ids(branch_ids=scope),
+        availability_conflicts=conflicts_for_shifts(
+            shifts, from_date=date.today().isoformat()
+        ),
         branches=_accessible_branches(),
         selected_branch_id=_selected_branch_id(),
     )
@@ -196,6 +214,8 @@ def add_shift_page():
         department_id=department_id,
     )
 
+    _warn_about_availability(employee_id, shift_date, start_time, end_time)
+
     return redirect("/shifts")
 
 
@@ -269,6 +289,8 @@ def edit_shift_page(shift_id):
         shift_type,
         department_id=department_id,
     )
+
+    _warn_about_availability(employee_id, shift_date, start_time, end_time)
 
     return redirect("/shifts")
 

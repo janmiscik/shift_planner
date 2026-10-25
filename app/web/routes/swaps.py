@@ -178,17 +178,20 @@ def _decide_swap(swap_id, decision):
     note = request.form.get("decision_note")
 
     if decision == "approve":
-        ok, errors = approve_swap(swap_id, current_user.id, note)
+        ok, messages = approve_swap(swap_id, current_user.id, note)
 
         if not ok:
             flash("Výmenu nemožno schváliť:", "error")
 
-            for message in errors:
+            for message in messages:
                 flash(message, "error")
 
             return redirect("/swap-requests")
 
         flash("Výmena bola schválená a smeny sú prehodené.", "success")
+
+        for message in messages:
+            flash(f"Pozor: {message}", "warning")
 
         return redirect("/swap-requests")
 
