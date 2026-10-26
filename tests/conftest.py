@@ -59,6 +59,33 @@ if TEST_DATABASE_URL:
 
 
 @pytest.fixture(scope="session", autouse=True)
+def fast_sqlite_for_tests():
+    """Testovacie databázy sú dočasné súbory, takže im nevadí, že sa
+    zápis nesynchronizuje s diskom po každom commite (na Windowse s
+    antivírusom je to hlavný dôvod pomalých testov). Platí LEN pre
+    testy a LEN pre SQLite; produkčná appka ostáva pri bezpečnom
+    predvolenom nastavení."""
+
+    import sqlite3
+
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    def relax_durability(dbapi_connection, connection_record):
+        if isinstance(dbapi_connection, sqlite3.Connection):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA synchronous=OFF")
+            cursor.execute("PRAGMA journal_mode=MEMORY")
+            cursor.close()
+
+    event.listen(Engine, "connect", relax_durability)
+
+    yield
+
+    event.remove(Engine, "connect", relax_durability)
+
+
+@pytest.fixture(scope="session", autouse=True)
 def fast_password_hashing():
     """Testy vytvárajú tisíce účtov a prihlásení. Bežná (bezpečná) metóda
     ``scrypt`` trvá ~190 ms na vytvorenie a ~75 ms na overenie hesla, čo

@@ -7,3 +7,5 @@ app/data/backups/
 .idea/
 .vscode/
 app/data/*.db
+.pytest_tmp/
+.pytest_cache/
