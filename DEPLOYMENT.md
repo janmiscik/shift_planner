@@ -193,7 +193,26 @@ Zálohy patria **aj mimo servera** (iný disk/cloud) - záloha na tom istom
 disku nepomôže pri jeho výpadku. Admin si môže zálohu stiahnuť aj v appke
 (menu "Zálohovať databázu").
 
-**Obnova** je zámerne ručná (prepíše všetky dáta).
+**Overenie záloh.** Záloha, z ktorej sa nedá obnoviť, je na nič. Každá
+záloha sa hneď po vytvorení overí (SQLite: konzistentná kópia cez SQLite
+Backup API a `PRAGMA integrity_check`; PostgreSQL: `pg_restore --list`) a
+záloha, ktorá neprejde, sa vôbec neuloží. Navyše **raz týždenne** spusti
+skúšobnú obnovu do dočasného priečinka (skutočná databáza sa nemení):
+
+```bash
+.venv/bin/python manage.py verify-backup          # najnovšia záloha
+.venv/bin/python manage.py verify-backup <nazov>  # konkrétna záloha
+```
+
+Cron (nedeľa 03:00): `0 3 * * 0 cd /opt/shift_planner && .venv/bin/python manage.py verify-backup`
+(príkaz skončí s chybou, ak je záloha nepoužiteľná - nastav upozornenie na
+nenulový výsledok).
+
+**Obnova** je zámerne ručná (prepíše všetky dáta). Pri SQLite:
+`python manage.py restore <nazov_zalohy>` prijíma len NÁZOV zálohy zo zoznamu
+(`list-backups`), nie cestu; záloha sa pred použitím overí, aktuálny stav sa
+zazálohuje ("pred-obnovou") a súbor sa nahradí atomicky, takže pri chybe ostane
+pôvodná databáza nezmenená. Appka musí byť pri obnove zastavená.
 `python manage.py restore <subor.dump>` vypíše presný príkaz
 `pg_restore`, ktorý treba spustiť (po zastavení appky).
 

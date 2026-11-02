@@ -80,7 +80,10 @@ def admin_backup():
 
     database_path = sqlite_path_from_uri(database_uri)
 
-    backup_path = create_backup(database_path, label="stiahnutie")
+    try:
+        backup_path = create_backup(database_path, label="stiahnutie")
+    except BackupError as error:
+        return f"Zálohu sa nepodarilo vytvoriť: {error}", 500
 
     if backup_path is None:
         return "Databáza ešte neexistuje, niet čo zálohovať.", 404

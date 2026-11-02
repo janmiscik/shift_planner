@@ -1281,18 +1281,47 @@ def test_delete_absence(client):
 # Zálohovanie databázy
 # ---------------------------------------------------------------------
 
+def _make_sqlite_db(path, names):
+    """Skutočná (malá) SQLite databáza s tabuľkou employees - zálohy sa
+    teraz overujú, takže "falošný" obsah súboru už neprejde."""
+
+    import sqlite3
+
+    connection = sqlite3.connect(path)
+    connection.execute("CREATE TABLE IF NOT EXISTS employees (name TEXT)")
+    connection.execute("DELETE FROM employees")
+    connection.executemany(
+        "INSERT INTO employees (name) VALUES (?)", [(name,) for name in names]
+    )
+    connection.commit()
+    connection.close()
+
+
+def _employee_names(path):
+    import sqlite3
+
+    connection = sqlite3.connect(path)
+
+    try:
+        return sorted(
+            row[0] for row in connection.execute("SELECT name FROM employees")
+        )
+    finally:
+        connection.close()
+
+
 def test_backup_creates_file_next_to_database(tmp_path):
     from app.services.backup_service import create_backup, list_backups
 
     db_path = tmp_path / "test.db"
-    db_path.write_bytes(b"fake sqlite content")
+    _make_sqlite_db(db_path, ["Anna", "Boris"])
 
     backup_path = create_backup(db_path, label="test")
 
     assert backup_path is not None
     assert backup_path.exists()
     assert backup_path.parent == tmp_path / "backups"
-    assert backup_path.read_bytes() == b"fake sqlite content"
+    assert _employee_names(backup_path) == ["Anna", "Boris"]
 
     backups = list_backups(db_path)
     assert len(backups) == 1
@@ -1311,26 +1340,44 @@ def test_restore_backup_brings_back_old_content(tmp_path):
     from app.services.backup_service import create_backup, restore_backup
 
     db_path = tmp_path / "test.db"
-    db_path.write_bytes(b"original content")
+    _make_sqlite_db(db_path, ["Anna", "Boris"])
 
     backup_path = create_backup(db_path, label="snapshot")
 
-    # Databáza sa medzitým "pokazí"/zmení.
-    db_path.write_bytes(b"corrupted content")
+    # Databáza sa medzitým zmení.
+    _make_sqlite_db(db_path, ["Zmenený"])
 
     restore_backup(backup_path.name, db_path)
 
-    assert db_path.read_bytes() == b"original content"
+    assert _employee_names(db_path) == ["Anna", "Boris"]
 
 
 def test_restore_missing_backup_raises(tmp_path):
     from app.services.backup_service import restore_backup
 
     db_path = tmp_path / "test.db"
-    db_path.write_bytes(b"content")
+    _make_sqlite_db(db_path, ["Anna"])
 
     with pytest.raises(FileNotFoundError):
         restore_backup("neexistujuca_zaloha.db", db_path)
+
+
+@pytest.mark.sqlite_only
+def test_admin_backup_route_reports_a_failed_backup(client, monkeypatch):
+    """Záloha, ktorá neprejde kontrolou, sa nestiahne - admin dostane
+    zrozumiteľnú chybu a nie poškodený súbor."""
+
+    import app.services.backup_service as service
+
+    def failing_backup(path, label=None):
+        raise service.BackupError("záloha neprešla kontrolou")
+
+    monkeypatch.setattr(service, "create_backup", failing_backup)
+
+    response = client.get("/admin/backup")
+
+    assert response.status_code == 500
+    assert "Zálohu sa nepodarilo vytvoriť" in response.get_data(as_text=True)
 
 
 @pytest.mark.sqlite_only

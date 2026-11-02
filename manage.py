@@ -17,6 +17,9 @@ Použitie:
                                             # staršie ako <dni> (min. 7)
     python manage.py audit-prune <dni>     # zmaže záznamy zmien (audit log)
                                             # staršie ako <dni> (min. 30)
+    python manage.py verify-backup [nazov] # overí zálohu (integrita + skúšobná
+                                            # obnova do dočasného priečinka);
+                                            # bez názvu najnovšiu
     python manage.py serve                 # spustí produkčný server
                                             # (waitress); vyžaduje vlastný
                                             # SECRET_KEY, pozri DEPLOYMENT.md
@@ -129,15 +132,20 @@ def main():
     elif command == "list-backups":
         _run_list_backups()
 
+    elif command == "verify-backup":
+        _run_verify_backup(sys.argv[2] if len(sys.argv) > 2 else None)
+
     elif command == "restore":
-        if len(sys.argv) < 3:
+        arguments = [a for a in sys.argv[2:] if a != "--yes"]
+
+        if len(arguments) != 1:
             print(
-                "Použitie: python manage.py restore <nazov_zalohy>\n"
+                "Použitie: python manage.py restore <nazov_zalohy> [--yes]\n"
                 "Zoznam dostupných záloh: python manage.py list-backups"
             )
-            return
+            sys.exit(1)
 
-        _run_restore(sys.argv[2])
+        _run_restore(arguments[0], assume_yes="--yes" in sys.argv[2:])
 
     elif command == "cleanup-duplicates":
         from app.web.app import create_app
@@ -658,7 +666,11 @@ def _run_backup():
         print(f"Záloha vytvorená: {backup_path}")
         return
 
-    backup_path = create_backup(DEFAULT_DATABASE_PATH, label="manualna")
+    try:
+        backup_path = create_backup(DEFAULT_DATABASE_PATH, label="manualna")
+    except BackupError as error:
+        print(f"Záloha zlyhala: {error}")
+        sys.exit(1)
 
     if backup_path is None:
         print(
@@ -687,12 +699,88 @@ def _run_list_backups():
         print(f"  {backup_path.name}  ({size_kb:.0f} KB, {timestamp})")
 
 
-def _run_restore(backup_filename):
+def _run_verify_backup(backup_filename=None):
+    """Overí zálohu: integrita a SKÚŠOBNÁ OBNOVA do dočasného priečinka
+    (skutočná databáza sa nemení). Bez názvu sa overí najnovšia záloha.
+    Odporúča sa pravidelne (napr. raz týždenne) - záloha, z ktorej sa
+    nedá obnoviť, je na nič."""
+
+    from app.data.database import DEFAULT_DATABASE_PATH, is_sqlite_uri
+    from app.services.backup_service import (
+        BackupError,
+        check_restorable,
+        default_backups_dir,
+        list_backups,
+        resolve_managed_backup,
+        verify_postgres_dump,
+    )
+
+    sqlite = is_sqlite_uri(_database_uri())
+    suffix = ".db" if sqlite else ".dump"
+
+    try:
+        if backup_filename is None:
+            known = (
+                list_backups(DEFAULT_DATABASE_PATH)
+                if sqlite
+                else list_backups(default_backups_dir() / "x.db")
+            )
+            candidates = [item[0] for item in known if item[0].suffix == suffix]
+
+            if not candidates:
+                print("Žiadne zálohy na overenie (python manage.py backup).")
+                sys.exit(1)
+
+            backup_path = candidates[0]
+        elif sqlite:
+            backup_path = resolve_managed_backup(
+                backup_filename, DEFAULT_DATABASE_PATH, suffix=".db"
+            )
+        else:
+            backup_path = resolve_managed_backup(
+                backup_filename,
+                backups_dir=default_backups_dir(),
+                suffix=".dump",
+            )
+
+        info = (
+            check_restorable(backup_path)
+            if sqlite
+            else verify_postgres_dump(backup_path)
+        )
+    except FileNotFoundError as error:
+        print(str(error))
+        print("Zoznam dostupných záloh: python manage.py list-backups")
+        sys.exit(1)
+    except BackupError as error:
+        print(f"ZÁLOHA JE NEPOUŽITEĽNÁ: {error}")
+        sys.exit(1)
+
+    print(f"Záloha '{backup_path.name}' je v poriadku.")
+
+    if sqlite:
+        print("  integrita: ok, skúšobná obnova do dočasného priečinka: ok")
+        print(f"  verzia migrácie: {info['alembic_version'] or '(neznáma)'}")
+
+        for table, count in info["counts"].items():
+            print(f"  {table}: {count}")
+    elif info["checked_with_pg_restore"]:
+        print("  pg_restore --list: ok")
+    else:
+        print("  (pg_restore nie je k dispozícii, skontrolovaná len hlavička)")
+
+
+def _run_restore(backup_filename, assume_yes=False):
+    """Obnova databázy zo zálohy. Prijíma len NÁZOV zálohy zo zoznamu
+    (``list-backups``), nie cestu."""
+
     from sqlalchemy.engine import make_url
 
     from app.data.database import DEFAULT_DATABASE_PATH, is_sqlite_uri
     from app.services.backup_service import (
+        BackupError,
         default_backups_dir,
+        resolve_managed_backup,
         restore_backup,
     )
 
@@ -700,9 +788,23 @@ def _run_restore(backup_filename):
 
     if not is_sqlite_uri(uri):
         # Obnova PostgreSQL prepíše celú databázu - radšej sa nerobí
-        # automaticky, ale ručne a vedome.
+        # automaticky, ale ručne a vedome. Názov zálohy sa aj tak overí,
+        # aby sa do vypísaného príkazu nedostala cudzia cesta.
+        try:
+            backup_path = resolve_managed_backup(
+                backup_filename,
+                backups_dir=default_backups_dir(),
+                suffix=".dump",
+            )
+        except FileNotFoundError as error:
+            print(str(error))
+            print("Zoznam dostupných záloh: python manage.py list-backups")
+            sys.exit(1)
+        except BackupError as error:
+            print(f"Obnova odmietnutá: {error}")
+            sys.exit(1)
+
         url = make_url(uri)
-        backup_path = default_backups_dir() / backup_filename
 
         print("Obnova PostgreSQL databázy sa robí ručne (prepíše všetky dáta).")
         print("1. Zastav appku a urob čerstvú zálohu: python manage.py backup")
@@ -715,24 +817,31 @@ def _run_restore(backup_filename):
         )
         return
 
-    confirmation = input(
-        f"Naozaj chceš prepísať aktuálnu databázu zálohou "
-        f"'{backup_filename}'? Aktuálny stav sa pred tým tiež "
-        f"zazálohuje. Napíš 'ano' pre potvrdenie: "
-    )
+    if not assume_yes:
+        confirmation = input(
+            f"Naozaj chceš prepísať aktuálnu databázu zálohou "
+            f"'{backup_filename}'? Aktuálny stav sa pred tým tiež "
+            f"zazálohuje. Appka musí byť zastavená. "
+            f"Napíš 'ano' pre potvrdenie: "
+        )
 
-    if confirmation.strip().lower() != "ano":
-        print("Zrušené - nič sa nezmenilo.")
-        return
+        if confirmation.strip().lower() != "ano":
+            print("Zrušené - nič sa nezmenilo.")
+            return
 
     try:
         restore_backup(backup_filename, DEFAULT_DATABASE_PATH)
     except FileNotFoundError as error:
         print(str(error))
         print("Zoznam dostupných záloh: python manage.py list-backups")
-        return
+        sys.exit(1)
+    except BackupError as error:
+        print(f"Obnova odmietnutá alebo zlyhala: {error}")
+        print("Pôvodná databáza ostala nezmenená.")
+        sys.exit(1)
 
     print(f"Databáza obnovená zo zálohy '{backup_filename}'.")
+    print("Pred obnovou sa aktuálny stav zazálohoval ('pred-obnovou').")
 
 
 def _run_migrate_postgres(uri):
@@ -807,7 +916,7 @@ def _run_migrate():
         return
 
     from app.extensions import db
-    from app.services.backup_service import create_backup
+    from app.services.backup_service import BackupError, create_backup
     from app.web.app import create_app
 
     db_path = Path(DEFAULT_DATABASE_PATH)
@@ -819,7 +928,12 @@ def _run_migrate():
 
     print(f"Databázový súbor: {db_path}")
 
-    backup_path = create_backup(DEFAULT_DATABASE_PATH, label="pred-migraciou")
+    try:
+        backup_path = create_backup(DEFAULT_DATABASE_PATH, label="pred-migraciou")
+    except BackupError as error:
+        print(f"Záloha pred migráciou zlyhala: {error}")
+        print("Migrácia sa NESPUSTILA (bezpečnosť dát).")
+        sys.exit(1)
 
     if backup_path is not None:
         print(f"Automatická záloha pred migráciou: {backup_path}")
