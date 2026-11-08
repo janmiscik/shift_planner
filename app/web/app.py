@@ -35,6 +35,11 @@ from app.services.audit_service import (
     to_local,
 )
 from app.services.login_throttle import LoginThrottle
+from app.web.config_check import (
+    is_production,
+    validate_production_config,
+    weak_secret_reason,
+)
 from app.web.core import (
     _DEFAULT_SECRET_KEY,
     bp,
@@ -58,7 +63,7 @@ from app.web.permissions import (  # noqa: F401
 load_dotenv()
 
 
-def create_app(database_path=None):
+def create_app(database_path=None, production=None):
     """Vytvorí a nakonfiguruje inštanciu Flask appky.
 
     ``database_path`` - explicitná cesta k SQLite súboru. Ak sa
@@ -75,12 +80,26 @@ def create_app(database_path=None):
 
     app.secret_key = os.environ.get("SECRET_KEY", _DEFAULT_SECRET_KEY)
 
-    if app.secret_key == _DEFAULT_SECRET_KEY:
+    if production is None:
+        production = is_production()
+
+    if production:
+        # Produkcia: nebezpečná konfigurácia (slabý kľúč, necookie-secure za
+        # HTTPS proxy, ...) sa neodmieta len varovaním, ale spustenie sa zastaví.
+        validate_production_config()
+    elif app.secret_key == _DEFAULT_SECRET_KEY:
         print(
             "UPOZORNENIE: beží sa s predvoleným (nebezpečným) SECRET_KEY. "
             "Pred nasadením do produkcie nastav premennú prostredia "
             "SECRET_KEY na náhodný, tajný reťazec - napr.:\n"
-            "  python -c \"import secrets; print(secrets.token_hex(32))\""
+            "  python -c \"import secrets; print(secrets.token_hex(32))\"\n"
+            "V produkcii nastav aj APP_ENV=production - appka sa potom "
+            "s nebezpečným nastavením odmietne spustiť."
+        )
+    elif weak_secret_reason(app.secret_key):
+        print(
+            f"UPOZORNENIE: SECRET_KEY {weak_secret_reason(app.secret_key)}. "
+            "V produkcii (APP_ENV=production) by sa appka nespustila."
         )
 
     database_uri = resolve_database_uri(database_path)
@@ -101,6 +120,9 @@ def create_app(database_path=None):
     app.config["SESSION_COOKIE_SECURE"] = (
         os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
     )
+    app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+    app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+    app.config["REMEMBER_COOKIE_SECURE"] = app.config["SESSION_COOKIE_SECURE"]
 
     if os.environ.get("BEHIND_PROXY", "0") == "1":
         # Appka beží za reverzným proxy (Caddy/nginx), ktoré rieši

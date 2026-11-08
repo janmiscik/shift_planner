@@ -324,6 +324,16 @@ by pravidlo porušila, sa **preskočí a uvedie sa dôvod** - ostatné sa
 vytvoria. Preskočí sa aj smena neaktívneho zamestnanca a smena, ktorá v
 cieľovom týždni už je. Opakované kopírovanie preto nevytvára duplicity.
 
+## Produkčný režim
+
+Na serveri nastav v `.env` `APP_ENV=production` a vlastný náhodný
+`SECRET_KEY` (`python -c "import secrets; print(secrets.token_hex(32))"`).
+Appka sa potom **odmietne spustiť** s nebezpečným nastavením: slabý alebo
+ukážkový `SECRET_KEY` (aj ten z `.env.example`), `BEHIND_PROXY=1` bez
+`SESSION_COOKIE_SECURE=1` alebo `TRUSTED_PROXY=*`. `python manage.py serve`
+tieto kontroly robí vždy. Podrobnosti sú v `DEPLOYMENT.md`. Lokálny vývoj
+(bez `APP_ENV=production`) funguje ako doteraz, len s upozornením.
+
 ## Nasadenie pre pobočky
 
 Pre reálnu prevádzku s viacerými pobočkami (PostgreSQL, produkčný

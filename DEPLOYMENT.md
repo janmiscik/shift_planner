@@ -63,6 +63,7 @@ cp .env.example .env
 V `.env` nastav (ostatné nechaj):
 
 ```
+APP_ENV=production
 SECRET_KEY=<výstup z: python -c "import secrets; print(secrets.token_hex(32))">
 DATABASE_URL=postgresql://planner:ZMEN-TO-HESLO@127.0.0.1:5432/shift_planner
 BEHIND_PROXY=1
@@ -75,6 +76,23 @@ SESSION_COOKIE_SECURE=1
 > `TRUSTED_PROXY=<jeho adresa>`. Hlavičky od čohokoľvek iného sa zahodia.
 > Bez `BEHIND_PROXY=1` by appka videla všetkých klientov ako adresu
 > proxy - a ochrana prihlásenia (nižšie) by ich zablokovala naraz.
+
+### Produkčný režim: appka sa s nebezpečným nastavením nespustí
+
+S `APP_ENV=production` (a vždy pri `python manage.py serve`) sa appka
+**odmietne spustiť**, ak:
+
+- `SECRET_KEY` chýba, je predvolený alebo ukážkový (aj ten z
+  `.env.example`), kratší než 32 znakov alebo nevyzerá náhodne,
+- beží za HTTPS proxy (`BEHIND_PROXY=1`), ale `SESSION_COOKIE_SECURE` nie
+  je `1` (prihlasovacia cookie by sa mohla posielať nešifrovane),
+- `TRUSTED_PROXY=*` (dôveruje podvrhnutým hlavičkám od kohokoľvek),
+- `serve` počúva na sieťovej adrese bez HTTPS.
+
+Vypíše sa zoznam problémov a ako ich opraviť. Ak naozaj bežíš len v
+uzavretej internej sieti bez HTTPS, nastav `ALLOW_INSECURE_HTTP=1` (heslá
+potom idú po sieti nešifrovane) - slabý `SECRET_KEY` sa takto povoliť nedá.
+Vo vývoji (bez `APP_ENV=production`) sa len vypíše upozornenie.
 
 ## 3. Databáza
 
@@ -298,7 +316,7 @@ alebo admin reštartuje appku / resetuje heslo.
 
 ## Kontrolný zoznam
 
-- [ ] `SECRET_KEY` je vlastný, náhodný (nie z `.env.example`)
+- [ ] `APP_ENV=production` a `SECRET_KEY` je vlastný, náhodný (appka s iným kľúčom nenaštartuje)
 - [ ] `DATABASE_URL` mieri na PostgreSQL, heslo databázy je silné
 - [ ] waitress počúva len na `127.0.0.1`, verejne je dostupný len Caddy
 - [ ] `BEHIND_PROXY=1` a `SESSION_COOKIE_SECURE=1`

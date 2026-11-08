@@ -10,4 +10,4 @@ bp = Blueprint("main", __name__)
 
 csrf = CSRFProtect()
 
-_DEFAULT_SECRET_KEY = "dev-docasny-kluc-zmen-v-produkcii"
+from app.web.config_check import DEFAULT_SECRET_KEY as _DEFAULT_SECRET_KEY  # noqa: E402

@@ -25,7 +25,7 @@ if TEST_DATABASE_URL:
     _original_create_app = app_module.create_app
     _previous_apps = []
 
-    def _create_app_on_postgres(database_path=None):
+    def _create_app_on_postgres(database_path=None, **options):
         from app.extensions import db
 
         # Uvoľni spojenia z predchádzajúcich testov (PostgreSQL má
@@ -39,7 +39,7 @@ if TEST_DATABASE_URL:
 
         os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
-        app = _original_create_app(database_path=None)
+        app = _original_create_app(database_path=None, **options)
 
         with app.app_context():
             with db.engine.begin() as connection:

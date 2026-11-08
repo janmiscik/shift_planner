@@ -1,9 +1,13 @@
 """Testy nasadenia: výber databázy, produkčný server, proxy/HTTPS,
 bezpečnostné hlavičky."""
 
+import secrets
 import sys
 
 import pytest
+
+# Dostatočne náhodný kľúč: produkčná kontrola odmieta krátke a "xxxx" kľúče.
+STRONG_KEY = secrets.token_hex(32)
 
 
 # ---------------------------------------------------------------------
@@ -105,6 +109,7 @@ def test_proxy_headers_trusted_when_behind_proxy(make_app, monkeypatch):
     from flask import request
 
     monkeypatch.setenv("BEHIND_PROXY", "1")
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "1")
 
     app = make_app()
 
@@ -186,7 +191,7 @@ def test_serve_starts_waitress_with_safe_defaults(monkeypatch):
         calls["kwargs"] = kwargs
 
     monkeypatch.setattr(waitress, "serve", fake_serve)
-    monkeypatch.setenv("SECRET_KEY", "x" * 64)
+    monkeypatch.setenv("SECRET_KEY", STRONG_KEY)
 
     for name in ("HOST", "PORT", "THREADS", "BEHIND_PROXY"):
         monkeypatch.delenv(name, raising=False)
@@ -195,7 +200,7 @@ def test_serve_starts_waitress_with_safe_defaults(monkeypatch):
 
     # Predvolene len localhost (verejný prístup rieši reverzný proxy).
     assert calls["kwargs"] == {"host": "127.0.0.1", "port": 8000, "threads": 8}
-    assert calls["app"].secret_key == "x" * 64
+    assert calls["app"].secret_key == STRONG_KEY
 
 
 def test_serve_respects_host_port_threads(monkeypatch):
@@ -205,11 +210,12 @@ def test_serve_respects_host_port_threads(monkeypatch):
     monkeypatch.setattr(
         waitress, "serve", lambda app, **kwargs: calls.update(kwargs)
     )
-    monkeypatch.setenv("SECRET_KEY", "y" * 64)
+    monkeypatch.setenv("SECRET_KEY", STRONG_KEY)
     monkeypatch.setenv("HOST", "0.0.0.0")
     monkeypatch.setenv("PORT", "9000")
     monkeypatch.setenv("THREADS", "4")
     monkeypatch.setenv("BEHIND_PROXY", "1")
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "1")
 
     _run_manage(monkeypatch, "serve")
 
@@ -229,8 +235,9 @@ def test_serve_trusts_forwarded_headers_only_from_trusted_proxy(monkeypatch):
     monkeypatch.setattr(
         waitress, "serve", lambda app, **kwargs: calls.update(kwargs)
     )
-    monkeypatch.setenv("SECRET_KEY", "z" * 64)
+    monkeypatch.setenv("SECRET_KEY", STRONG_KEY)
     monkeypatch.setenv("BEHIND_PROXY", "1")
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "1")
     monkeypatch.delenv("TRUSTED_PROXY", raising=False)
 
     _run_manage(monkeypatch, "serve")
@@ -258,7 +265,7 @@ def test_serve_without_proxy_does_not_trust_forwarded_headers(monkeypatch):
     monkeypatch.setattr(
         waitress, "serve", lambda app, **kwargs: calls.update(kwargs)
     )
-    monkeypatch.setenv("SECRET_KEY", "w" * 64)
+    monkeypatch.setenv("SECRET_KEY", STRONG_KEY)
     monkeypatch.delenv("BEHIND_PROXY", raising=False)
 
     _run_manage(monkeypatch, "serve")

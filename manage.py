@@ -483,16 +483,16 @@ def _run_serve():
 
     import os
 
-    from app.web.app import _DEFAULT_SECRET_KEY, create_app
+    from app.web.app import create_app
+    from app.web.config_check import explain, production_problems
 
-    secret_key = os.environ.get("SECRET_KEY", "")
+    # Produkčný server: s nebezpečnou konfiguráciou (slabý SECRET_KEY,
+    # cookie bez Secure za HTTPS proxy, počúvanie na sieti bez HTTPS...) sa
+    # nespustí - nestačí len varovanie.
+    problems = production_problems(check_listening=True)
 
-    if not secret_key or secret_key == _DEFAULT_SECRET_KEY:
-        print(
-            "CHYBA: pre produkčný server musí byť nastavený vlastný "
-            "SECRET_KEY (v .env alebo v prostredí). Vygeneruješ ho:\n"
-            "  python -c \"import secrets; print(secrets.token_hex(32))\""
-        )
+    if problems:
+        print("CHYBA: " + explain(problems))
         sys.exit(1)
 
     try:
@@ -509,23 +509,21 @@ def _run_serve():
     threads = int(os.environ.get("THREADS", "8"))
 
     behind_proxy = os.environ.get("BEHIND_PROXY", "0") == "1"
-    secure_cookie = os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
 
-    if behind_proxy and not secure_cookie:
+    if (
+        behind_proxy
+        and host not in ("127.0.0.1", "localhost")
+        and not os.environ.get("TRUSTED_PROXY")
+    ):
         print(
-            "UPOZORNENIE: BEHIND_PROXY=1, ale SESSION_COOKIE_SECURE nie "
-            "je 1. Ak proxy poskytuje HTTPS, nastav "
-            "SESSION_COOKIE_SECURE=1."
+            "UPOZORNENIE: BEHIND_PROXY=1 a server počúva na sieťovej adrese, "
+            "ale TRUSTED_PROXY nie je nastavený (predvolene sa dôveruje len "
+            "127.0.0.1). Ak proxy beží na inom serveri, nastav jeho adresu v "
+            "TRUSTED_PROXY, inak uvidí appka všetkých klientov ako adresu "
+            "proxy."
         )
 
-    if host not in ("127.0.0.1", "localhost") and not behind_proxy:
-        print(
-            f"UPOZORNENIE: server počúva na {host} bez HTTPS. Heslá by "
-            "sa po sieti posielali nešifrovane - použi reverzný proxy "
-            "s HTTPS (pozri DEPLOYMENT.md) a HOST=127.0.0.1."
-        )
-
-    app = create_app()
+    app = create_app(production=True)
 
     from app.services.email_service import (
         smtp_configured,
