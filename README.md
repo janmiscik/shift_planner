@@ -324,6 +324,16 @@ by pravidlo porušila, sa **preskočí a uvedie sa dôvod** - ostatné sa
 vytvoria. Preskočí sa aj smena neaktívneho zamestnanca a smena, ktorá v
 cieľovom týždni už je. Opakované kopírovanie preto nevytvára duplicity.
 
+## Súbežné zmeny smien
+
+Ak dvaja manažéri naraz upravujú rozpis toho istého zamestnanca (pridanie,
+úprava, presun smeny, kopírovanie/zverejnenie týždňa, schválenie výmeny),
+appka to rieši zámkom na zamestnanca (`app/services/concurrency.py`) -
+druhá požiadavka počká, kým prvá dokončí, a jej pravidlá sa overia nad
+aktuálnym stavom. Na PostgreSQL ide o transakčný advisory lock; na SQLite
+o vynútené čakanie (`SQLITE_BUSY_TIMEOUT`, predvolene 20 s). Podrobnosti
+v `DEPLOYMENT.md`.
+
 ## Produkčný režim
 
 Na serveri nastav v `.env` `APP_ENV=production` a vlastný náhodný

@@ -41,6 +41,7 @@ from app.services.export_service import (
     build_shifts_workbook,
 )
 from app.services.capacity_service import get_understaffed_shifts
+from app.services.concurrency import lock_employee_for_write
 from app.services.availability_service import (
     conflicts_for_shifts,
     shift_conflicts,
@@ -299,19 +300,21 @@ def api_move_shift(shift_id):
     new_start = payload.get("start_time", shift[3])
     new_end = payload.get("end_time", shift[4])
 
-    errors = validate_shift(
-        shift[1],
-        new_date,
-        new_start,
-        new_end,
-        department_id=shift[6],
-        exclude_shift_id=shift_id,
-    )
+    # Pozri poznámku o súbežnosti v app/web/routes/shifts.py.
+    with lock_employee_for_write(shift[1]):
+        errors = validate_shift(
+            shift[1],
+            new_date,
+            new_start,
+            new_end,
+            department_id=shift[6],
+            exclude_shift_id=shift_id,
+        )
 
-    if errors:
-        return jsonify({"error": " ".join(errors)}), 400
+        if errors:
+            return jsonify({"error": " ".join(errors)}), 400
 
-    move_shift(shift_id, new_date, new_start, new_end)
+        move_shift(shift_id, new_date, new_start, new_end)
 
     conflicts = shift_conflicts(shift[1], new_date, new_start, new_end)
 

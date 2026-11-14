@@ -30,6 +30,7 @@ from app.orm_models import (
     User,
 )
 from app.services.availability_service import shift_conflicts
+from app.services.concurrency import lock_employees_for_write
 from app.services.shift_service import validate_shift
 
 STATUS_PENDING_COLLEAGUE = "pending_colleague"
@@ -335,68 +336,75 @@ def approve_swap(swap_id, user_id, decision_note=None, today=None):
         else None
     )
 
-    stale = []
+    # Pozri poznámku o súbežnosti v app/web/routes/shifts.py. Tu sa
+    # zamykajú OBAJA zamestnanci naraz (lock_employees_for_write zoradí
+    # ich ID, aby dve súbežné výmeny s rovnakou dvojicou nemohli
+    # skončiť v krížovom čakaní).
+    with lock_employees_for_write(
+        [swap.proposer_employee_id, swap.colleague_employee_id]
+    ):
+        stale = []
 
-    for employee in (proposer, colleague):
-        if employee is None or not employee.active:
-            stale.append("Niektorý zo zamestnancov už nie je aktívny.")
-            break
+        for employee in (proposer, colleague):
+            if employee is None or not employee.active:
+                stale.append("Niektorý zo zamestnancov už nie je aktívny.")
+                break
 
-    error = _swappable(offered, swap.proposer_employee_id, today, exclude_swap_id=swap.id)
-
-    if error:
-        stale.append(f"Ponúkaná smena: {error}")
-
-    if swap.wants_swap:
-        error = _swappable(counter, swap.colleague_employee_id, today, exclude_swap_id=swap.id)
+        error = _swappable(offered, swap.proposer_employee_id, today, exclude_swap_id=swap.id)
 
         if error:
-            stale.append(f"Smena na oplátku: {error}")
+            stale.append(f"Ponúkaná smena: {error}")
 
-    if stale:
-        return False, [*stale, "Žiadosť zamietni alebo požiadaj o novú."]
+        if swap.wants_swap:
+            error = _swappable(counter, swap.colleague_employee_id, today, exclude_swap_id=swap.id)
 
-    try:
-        offered.employee_id = colleague.id
+            if error:
+                stale.append(f"Smena na oplátku: {error}")
 
-        if counter is not None:
-            counter.employee_id = proposer.id
+        if stale:
+            return False, [*stale, "Žiadosť zamietni alebo požiadaj o novú."]
 
-        # Po prehodení musí NOVÉ pridelenie spĺňať všetky pravidlá.
-        db.session.flush()
+        try:
+            offered.employee_id = colleague.id
 
-        errors = []
+            if counter is not None:
+                counter.employee_id = proposer.id
 
-        for shift, owner in ((offered, colleague), (counter, proposer)):
-            if shift is None:
-                continue
+            # Po prehodení musí NOVÉ pridelenie spĺňať všetky pravidlá.
+            db.session.flush()
 
-            for message in validate_shift(
-                owner.id,
-                shift.shift_date,
-                shift.start_time,
-                shift.end_time,
-                department_id=shift.department_id,
-                exclude_shift_id=shift.id,
-            ):
-                errors.append(
-                    f"{_employee_name(owner)} ({shift_text(shift)}): {message}"
-                )
+            errors = []
 
-        if errors:
+            for shift, owner in ((offered, colleague), (counter, proposer)):
+                if shift is None:
+                    continue
+
+                for message in validate_shift(
+                    owner.id,
+                    shift.shift_date,
+                    shift.start_time,
+                    shift.end_time,
+                    department_id=shift.department_id,
+                    exclude_shift_id=shift.id,
+                ):
+                    errors.append(
+                        f"{_employee_name(owner)} ({shift_text(shift)}): {message}"
+                    )
+
+            if errors:
+                db.session.rollback()
+
+                return False, errors
+
+            swap.status = STATUS_APPROVED
+            swap.decided_at = _now()
+            swap.decided_by_user_id = user_id
+            swap.decision_note = (decision_note or "").strip() or None
+
+            db.session.commit()
+        except Exception:
             db.session.rollback()
-
-            return False, errors
-
-        swap.status = STATUS_APPROVED
-        swap.decided_at = _now()
-        swap.decided_by_user_id = user_id
-        swap.decision_note = (decision_note or "").strip() or None
-
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
+            raise
 
     from app.services.notification_service import notify_swap_decided
 

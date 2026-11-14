@@ -248,6 +248,23 @@ sudo systemctl restart shift-planner
 `pg_dump`. Ak `pg_dump` nie je k dispozícii, **migráciu nespustí**
 (ochrana dát); na vlastné riziko ju vieš spustiť s `--no-backup`.
 
+## Súbežné zmeny smien (viacero manažérov naraz)
+
+Keď dvaja manažéri naraz upravujú rozpis (napr. obaja pridávajú smenu
+tomu istému zamestnancovi), appka to rieši uzamknutím zamestnanca na
+dobu kontroly pravidiel aj zápisu (``app/services/concurrency.py``) -
+druhá požiadavka počká, kým prvá transakciu dokončí, a až potom sa
+jej pravidlá overia nad AKTUÁLNYM (nie zastaraným) stavom. Vzťahuje sa
+na pridanie/úpravu/presun smeny, kopírovanie a zverejnenie týždňa a
+schválenie výmeny smien (tam sa zamykajú obaja zúčastnení zamestnanci).
+
+- **PostgreSQL**: transakčný advisory lock (žiadne nastavenie netreba).
+- **SQLite**: zámok funguje aj medzi viacerými procesmi zdieľajúcimi
+  ten istý súbor databázy, ale len kým čaká (``PRAGMA busy_timeout``).
+  Čas čakania nastavíš cez `SQLITE_BUSY_TIMEOUT` (predvolene 20
+  sekúnd) - mal by byť aspoň taký ako
+  `app/services/concurrency.py`'s `LOCK_TIMEOUT_SECONDS`.
+
 ## E-mailové upozornenia (SMTP)
 
 Appka posiela e-maily (zverejnený rozpis, žiadosti o voľno, výmeny

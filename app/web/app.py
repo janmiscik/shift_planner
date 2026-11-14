@@ -112,6 +112,20 @@ def create_app(database_path=None, production=None):
         # použitím sa pripojenie overí, aby appka po výpadku/reštarte
         # databázy nepadala na "stale connection".
         app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
+    else:
+        # SQLite dovoľuje zapisovať len jednému pripojeniu naraz - pri
+        # súbežných zápisoch (pozri app/services/concurrency.py) druhé
+        # pripojenie POČKÁ namiesto okamžitého zlyhania na "database is
+        # locked". Doba čakania (v sekundách) zodpovedá
+        # LOCK_TIMEOUT_SECONDS, nastaviteľná cez SQLITE_BUSY_TIMEOUT.
+        try:
+            busy_timeout = float(os.environ.get("SQLITE_BUSY_TIMEOUT", "20"))
+        except ValueError:
+            busy_timeout = 20.0
+
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "connect_args": {"timeout": busy_timeout}
+        }
 
     # Bezpečnejšie session cookie. Za HTTPS (pri nasadení pre
     # pobočky) nastav SESSION_COOKIE_SECURE=1.

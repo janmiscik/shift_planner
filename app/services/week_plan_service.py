@@ -31,6 +31,7 @@ from app.services.shift_service import (
     validate_shift,
 )
 from app.services.audit_service import suppressed
+from app.services.concurrency import lock_employee_for_write
 from app.services.availability_service import (
     rules_for_employees,
     shift_conflicts,
@@ -211,33 +212,38 @@ def _run_plan(entries, target_monday, commit):
                 row.reasons.append("Rovnaká smena už v tomto týždni je.")
                 continue
 
-            errors = validate_shift(
-                entry.employee_id,
-                shift_date,
-                entry.start_time,
-                entry.end_time,
-                department_id=entry.department_id,
-            )
-
-            if errors:
-                row.reasons.extend(errors)
-                continue
-
-            db.session.add(
-                Shift(
-                    employee_id=entry.employee_id,
-                    shift_date=shift_date,
-                    start_time=entry.start_time,
-                    end_time=entry.end_time,
-                    shift_type=entry.shift_type,
+            # Pozri poznámku o súbežnosti v app/web/routes/shifts.py. Zámok
+            # sa drží (najmä pri PostgreSQL) až do commitu/rollbacku na
+            # konci celého plánu, nielen do konca tohto bloku - to je
+            # žiaduce, kopírovanie týždňa je jedna transakcia.
+            with lock_employee_for_write(entry.employee_id):
+                errors = validate_shift(
+                    entry.employee_id,
+                    shift_date,
+                    entry.start_time,
+                    entry.end_time,
                     department_id=entry.department_id,
-                    created_at=datetime.now(timezone.utc).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
-                    published=published,
                 )
-            )
-            db.session.flush()
+
+                if errors:
+                    row.reasons.extend(errors)
+                    continue
+
+                db.session.add(
+                    Shift(
+                        employee_id=entry.employee_id,
+                        shift_date=shift_date,
+                        start_time=entry.start_time,
+                        end_time=entry.end_time,
+                        shift_type=entry.shift_type,
+                        department_id=entry.department_id,
+                        created_at=datetime.now(timezone.utc).strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        ),
+                        published=published,
+                    )
+                )
+                db.session.flush()
 
             row.status = "create"
 

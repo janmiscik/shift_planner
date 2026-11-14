@@ -44,6 +44,7 @@ from app.services.availability_service import (
     shift_conflicts,
     warning_text,
 )
+from app.services.concurrency import lock_employee_for_write
 from app.web.core import bp
 from app.web.helpers import (
     _accessible_branches,
@@ -186,33 +187,38 @@ def add_shift_page():
             form=form,
         )
 
-    errors = validate_shift(
-        employee_id,
-        shift_date,
-        start_time,
-        end_time,
-        department_id=department_id,
-    )
-
-    if errors:
-        for error in errors:
-            flash(error, "error")
-
-        return render_template(
-            "add_shift.html",
-            employees=employees,
-            selected_date=shift_date,
-            form=form,
+    # Súbežná zmena (dvaja manažéri naraz): pravidlá sa overujú a smena
+    # sa zapisuje v jednom uzamknutom bloku na zamestnanca, inak by mohli
+    # dve súbežné požiadavky obe prejsť kontrolou a obe zapísať
+    # kolidujúce smeny - pozri app/services/concurrency.py.
+    with lock_employee_for_write(employee_id):
+        errors = validate_shift(
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+            department_id=department_id,
         )
 
-    add_shift(
-        employee_id,
-        shift_date,
-        start_time,
-        end_time,
-        shift_type,
-        department_id=department_id,
-    )
+        if errors:
+            for error in errors:
+                flash(error, "error")
+
+            return render_template(
+                "add_shift.html",
+                employees=employees,
+                selected_date=shift_date,
+                form=form,
+            )
+
+        add_shift(
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+            shift_type,
+            department_id=department_id,
+        )
 
     _warn_about_availability(employee_id, shift_date, start_time, end_time)
 
@@ -260,35 +266,37 @@ def edit_shift_page(shift_id):
     shift_type = form.shift_type.data
     department_id = form.department_id.data or None
 
-    errors = validate_shift(
-        employee_id,
-        shift_date,
-        start_time,
-        end_time,
-        department_id=department_id,
-        exclude_shift_id=shift_id,
-    )
-
-    if errors:
-        for error in errors:
-            flash(error, "error")
-
-        return render_template(
-            "edit_shift.html",
-            shift=shift,
-            employees=employees,
-            form=form,
+    # Pozri poznámku o súbežnosti v add_shift_page vyššie.
+    with lock_employee_for_write(employee_id):
+        errors = validate_shift(
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+            department_id=department_id,
+            exclude_shift_id=shift_id,
         )
 
-    update_shift(
-        shift_id,
-        employee_id,
-        shift_date,
-        start_time,
-        end_time,
-        shift_type,
-        department_id=department_id,
-    )
+        if errors:
+            for error in errors:
+                flash(error, "error")
+
+            return render_template(
+                "edit_shift.html",
+                shift=shift,
+                employees=employees,
+                form=form,
+            )
+
+        update_shift(
+            shift_id,
+            employee_id,
+            shift_date,
+            start_time,
+            end_time,
+            shift_type,
+            department_id=department_id,
+        )
 
     _warn_about_availability(employee_id, shift_date, start_time, end_time)
 
